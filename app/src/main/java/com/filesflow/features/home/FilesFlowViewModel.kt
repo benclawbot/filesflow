@@ -24,9 +24,9 @@ class FilesFlowViewModel(
             )
         }
         viewModelScope.launch {
-            val storage = runCatching { repository.getStorageOverview() }.getOrElse { previewStorageOverview }
-            val categories = runCatching { repository.getCategorySummaries() }.getOrElse { previewFileCategorySummaries() }
-            val recentFiles = runCatching { repository.getRecentFiles() }.getOrElse { previewRecentFiles() }
+            val storage = runCatching { repository.getStorageOverview() }.getOrElse { emptyStorageOverview }
+            val categories = runCatching { repository.getCategorySummaries() }.getOrElse { emptyFileCategorySummaries() }
+            val recentFiles = runCatching { repository.getRecentFiles() }.getOrDefault(emptyList())
             _uiState.update {
                 it.copy(
                     storageOverview = storage,
@@ -64,13 +64,35 @@ class FilesFlowViewModel(
 
     fun openFolder(file: FilesFlowFile) {
         if (!file.isDirectory) {
-            _uiState.update { it.copy(selectedFile = file) }
             return
         }
-        _uiState.update { it.copy(isLoading = true, browseMode = BrowseMode.Folder(file.uri, file.name), selectedFile = null) }
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                browseMode = BrowseMode.Folder(
+                    uri = file.uri,
+                    displayName = file.name,
+                    path = file.path,
+                    source = file.source,
+                ),
+                selectedFile = null,
+            )
+        }
         viewModelScope.launch {
             val files = runCatching { repository.listFolder(file) }.getOrDefault(emptyList())
             _uiState.update { it.copy(visibleFiles = files, isLoading = false) }
+        }
+    }
+
+    fun showFileOpenFailed(fileName: String) {
+        _uiState.update {
+            it.copy(
+                operationStatus = FileOperationStatus(
+                    title = "Open failed",
+                    detail = "Android could not find an app to open $fileName.",
+                ),
+                isLoading = false,
+            )
         }
     }
 
@@ -99,6 +121,18 @@ class FilesFlowViewModel(
         _uiState.update { it.copy(operationStatus = null) }
     }
 
+    fun showAccessRequired() {
+        _uiState.update {
+            it.copy(
+                operationStatus = FileOperationStatus(
+                    title = "Storage access needed",
+                    detail = "Android needs file access before FilesFlow can open that location.",
+                ),
+                isLoading = false,
+            )
+        }
+    }
+
     fun persistSafFolder(uri: Uri) {
         repository.persistSafFolder(uri)
         _uiState.update {
@@ -114,13 +148,54 @@ class FilesFlowViewModel(
     fun runOperation(operation: FileOperation, file: FilesFlowFile) {
         _uiState.update { it.copy(isLoading = true, selectedFile = null) }
         viewModelScope.launch {
+            val mode = _uiState.value.browseMode
             val status = when (operation) {
                 FileOperation.Copy -> repository.copyToSafFolder(file)
                 FileOperation.Move -> repository.moveToSafFolder(file)
                 FileOperation.Delete -> repository.delete(file)
             }
-            _uiState.update { it.copy(operationStatus = status, isLoading = false) }
+            val visibleFiles = loadVisibleFiles(mode)
+            _uiState.update { it.copy(operationStatus = status, visibleFiles = visibleFiles, isLoading = false) }
             refresh()
         }
+    }
+
+    fun renameFile(file: FilesFlowFile, newName: String) {
+        _uiState.update { it.copy(isLoading = true, selectedFile = null) }
+        viewModelScope.launch {
+            val mode = _uiState.value.browseMode
+            val status = repository.rename(file, newName)
+            val visibleFiles = loadVisibleFiles(mode)
+            _uiState.update { it.copy(operationStatus = status, visibleFiles = visibleFiles, isLoading = false) }
+            refresh()
+        }
+    }
+
+    private suspend fun loadVisibleFiles(mode: BrowseMode): List<FilesFlowFile> {
+        return runCatching {
+            when (mode) {
+                BrowseMode.Home -> emptyList()
+                is BrowseMode.Category -> repository.listCategory(mode.type)
+                is BrowseMode.Folder -> if (mode.uri == null && mode.path == null) {
+                    repository.listBrowseRoot()
+                } else {
+                    repository.listFolder(
+                        FilesFlowFile(
+                            id = "folder-${mode.uri ?: mode.path}",
+                            name = mode.displayName,
+                            metadata = "Folder",
+                            uri = mode.uri,
+                            path = mode.path,
+                            mimeType = null,
+                            sizeBytes = 0L,
+                            modifiedAtMillis = 0L,
+                            source = mode.source,
+                            isDirectory = true,
+                        ),
+                    )
+                }
+                is BrowseMode.Search -> repository.searchFiles(mode.query)
+            }
+        }.getOrDefault(emptyList())
     }
 }

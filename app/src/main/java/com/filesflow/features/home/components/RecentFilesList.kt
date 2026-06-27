@@ -22,6 +22,7 @@ fun RecentFilesList(
     files: List<FilesFlowFile>,
     onViewAll: () -> Unit,
     onFileClick: (FilesFlowFile) -> Unit,
+    onFileLongClick: (FilesFlowFile) -> Unit,
     onMoreClick: (FilesFlowFile) -> Unit,
 ) {
     Column {
@@ -51,6 +52,7 @@ fun RecentFilesList(
                 RecentFileRow(
                     file = file,
                     onClick = { onFileClick(file) },
+                    onLongClick = { onFileLongClick(file) },
                     onMoreClick = { onMoreClick(file) },
                 )
             }

@@ -39,6 +39,7 @@ fun HomeDashboardPreview() {
                 files = previewRecentFiles(),
                 onViewAll = {},
                 onFileClick = {},
+                onFileLongClick = {},
                 onMoreClick = {},
             )
         }

@@ -47,8 +47,11 @@ class HomeDashboardContentTest {
     @Test
     fun categoryInferenceUsesMimeTypesNamesAndPaths() {
         assertEquals(FileCategoryType.Images, inferCategoryType("photo.jpg", "image/jpeg"))
+        assertEquals(FileCategoryType.Images, inferCategoryType("photo.png", null))
         assertEquals(FileCategoryType.Videos, inferCategoryType("clip.mp4", "video/mp4"))
+        assertEquals(FileCategoryType.Videos, inferCategoryType("clip.mkv", null))
         assertEquals(FileCategoryType.Music, inferCategoryType("song.mp3", "audio/mpeg"))
+        assertEquals(FileCategoryType.Music, inferCategoryType("song.flac", null))
         assertEquals(FileCategoryType.Downloads, inferCategoryType("statement.bin", null, "Download/statement.bin"))
         assertEquals(FileCategoryType.Apps, inferCategoryType("demo.apk", null))
         assertEquals(FileCategoryType.Docs, inferCategoryType("notes.pdf", "application/pdf"))
@@ -61,39 +64,44 @@ class HomeDashboardContentTest {
     }
 
     @Test
-    fun startupAccessFlowRequestsMissingAccessInOrder() {
+    fun appStateDoesNotStartWithFakeRuntimeFiles() {
+        val state = FilesFlowUiState()
+
+        assertEquals(0, state.storageOverview.usedPercent)
+        assertEquals("0 B Used", state.storageOverview.usedLabel)
+        assertEquals("0 B Total", state.storageOverview.totalLabel)
+        assertEquals(FileCategoryType.entries.toList(), state.categories.map { it.type })
+        assertTrue(state.categories.all { it.fileCount == 0 && it.totalBytes == 0L })
+        assertTrue(state.recentFiles.isEmpty())
+    }
+
+    @Test
+    fun contextualAccessFlowRequestsMissingAccessForUserDestination() {
         val noAccess = StorageAccessState()
 
         assertEquals(
-            StartupAccessRequest.MediaPermissions,
-            nextStartupAccessRequest(noAccess, StartupAccessPromptState()),
+            SystemAccessRequest.MediaPermissions,
+            systemAccessRequestForCategory(FileCategoryType.Images, noAccess),
         )
 
         assertEquals(
-            StartupAccessRequest.AllFilesAccess,
-            nextStartupAccessRequest(
-                noAccess.copy(hasImagesPermission = true),
-                StartupAccessPromptState(requestedMediaAccess = true),
-            ),
+            SystemAccessRequest.AllFilesAccess,
+            systemAccessRequestForCategory(FileCategoryType.Docs, noAccess),
         )
 
         assertEquals(
-            StartupAccessRequest.None,
-            nextStartupAccessRequest(
-                noAccess.copy(hasImagesPermission = true, hasAllFilesAccess = true),
-                StartupAccessPromptState(requestedMediaAccess = true, requestedAllFilesAccess = true),
-            ),
+            SystemAccessRequest.None,
+            systemAccessRequestForCategory(FileCategoryType.Apps, noAccess),
         )
 
         assertEquals(
-            StartupAccessRequest.None,
-            nextStartupAccessRequest(
-                noAccess.copy(hasImagesPermission = true, hasAllFilesAccess = true, hasSafFolder = true),
-                StartupAccessPromptState(
-                    requestedMediaAccess = true,
-                    requestedAllFilesAccess = true,
-                ),
-            ),
+            SystemAccessRequest.None,
+            systemAccessRequestForCategory(FileCategoryType.Images, noAccess.copy(hasImagesPermission = true)),
+        )
+
+        assertEquals(
+            SystemAccessRequest.None,
+            systemAccessRequestForCategory(FileCategoryType.Docs, noAccess.copy(hasAllFilesAccess = true)),
         )
     }
 }

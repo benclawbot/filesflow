@@ -1,5 +1,6 @@
 package com.filesflow.features.home
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -39,7 +40,6 @@ import com.filesflow.features.home.components.FileBrowserSection
 import com.filesflow.features.home.components.CategoryGrid
 import com.filesflow.features.home.components.FilesFlowTopBar
 import com.filesflow.features.home.components.NeumorphicSurface
-import com.filesflow.features.home.components.PermissionPanel
 import com.filesflow.features.home.components.RecentFilesList
 import com.filesflow.features.home.components.StorageOverviewCard
 import com.filesflow.ui.theme.FilesFlowBackground
@@ -50,11 +50,22 @@ import com.filesflow.ui.theme.FilesFlowSecondary
 @Composable
 fun HomeDashboardScreen(
     viewModel: FilesFlowViewModel,
-    onRequestMediaAccess: () -> Unit,
+    onOpenCategory: (FileCategoryType) -> Unit,
+    onOpenBrowseRoot: () -> Unit,
+    onSearchFiles: (String) -> Unit,
+    onOpenFile: (FilesFlowFile) -> Unit,
     onRequestSafFolder: () -> Unit,
-    onRequestAllFilesAccess: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val isBrowserMode = uiState.browseMode != BrowseMode.Home
+
+    BackHandler(enabled = uiState.selectedFile != null || isBrowserMode) {
+        if (uiState.selectedFile != null) {
+            viewModel.dismissActions()
+        } else {
+            viewModel.openHome()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -84,43 +95,41 @@ fun HomeDashboardScreen(
                     ),
                 verticalArrangement = Arrangement.spacedBy(32.dp),
             ) {
-                StorageOverviewCard(
-                    usedPercent = uiState.storageOverview.usedPercent,
-                    usedLabel = uiState.storageOverview.usedLabel,
-                    totalLabel = uiState.storageOverview.totalLabel,
-                )
-                PermissionPanel(
-                    accessState = uiState.accessState,
-                    destinationFolderName = uiState.destinationFolderName,
-                    onRequestMediaAccess = onRequestMediaAccess,
-                    onRequestSafFolder = onRequestSafFolder,
-                    onRequestAllFilesAccess = onRequestAllFilesAccess,
-                    onBrowse = viewModel::openBrowseRoot,
-                )
-                SearchAndBrowseCard(
-                    query = uiState.searchQuery,
-                    onQueryChange = viewModel::search,
-                    onBrowse = viewModel::openBrowseRoot,
-                    onClear = viewModel::openHome,
-                )
-                CategoryGrid(
-                    summaries = uiState.categories,
-                    onCategoryClick = viewModel::openCategory,
-                )
-
-                when (uiState.browseMode) {
-                    BrowseMode.Home -> RecentFilesList(
-                        files = uiState.recentFiles,
-                        onViewAll = viewModel::openBrowseRoot,
-                        onFileClick = viewModel::openFolder,
-                        onMoreClick = viewModel::selectFile,
-                    )
-                    else -> FileBrowserSection(
+                if (isBrowserMode) {
+                    FileBrowserSection(
                         browseMode = uiState.browseMode,
                         files = uiState.visibleFiles,
                         isLoading = uiState.isLoading,
                         onBackHome = viewModel::openHome,
-                        onFileClick = viewModel::openFolder,
+                        onFileClick = { file ->
+                            if (file.isDirectory) viewModel.openFolder(file) else onOpenFile(file)
+                        },
+                        onFileLongClick = viewModel::selectFile,
+                        onMoreClick = viewModel::selectFile,
+                    )
+                } else {
+                    StorageOverviewCard(
+                        usedPercent = uiState.storageOverview.usedPercent,
+                        usedLabel = uiState.storageOverview.usedLabel,
+                        totalLabel = uiState.storageOverview.totalLabel,
+                    )
+                    SearchAndBrowseCard(
+                        query = uiState.searchQuery,
+                        onQueryChange = onSearchFiles,
+                        onBrowse = onOpenBrowseRoot,
+                        onClear = viewModel::openHome,
+                    )
+                    CategoryGrid(
+                        summaries = uiState.categories,
+                        onCategoryClick = onOpenCategory,
+                    )
+                    RecentFilesList(
+                        files = uiState.recentFiles,
+                        onViewAll = onOpenBrowseRoot,
+                        onFileClick = { file ->
+                            if (file.isDirectory) viewModel.openFolder(file) else onOpenFile(file)
+                        },
+                        onFileLongClick = viewModel::selectFile,
                         onMoreClick = viewModel::selectFile,
                     )
                 }
@@ -149,6 +158,7 @@ fun HomeDashboardScreen(
                 hasDestinationFolder = uiState.destinationFolderName != null,
                 onCopy = { viewModel.runOperation(FileOperation.Copy, file) },
                 onMove = { viewModel.runOperation(FileOperation.Move, file) },
+                onRename = { newName -> viewModel.renameFile(file, newName) },
                 onDelete = { viewModel.runOperation(FileOperation.Delete, file) },
                 onChooseFolder = onRequestSafFolder,
                 onDismiss = viewModel::dismissActions,

@@ -2,7 +2,7 @@ package com.filesflow.features.home.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.combinedClickable
 import com.filesflow.features.home.FileSource
 import com.filesflow.features.home.FilesFlowFile
 import com.filesflow.ui.theme.FilesFlowOnSurface
@@ -50,10 +51,12 @@ import com.filesflow.ui.theme.FilesFlowOnSurfaceVariant
 import com.filesflow.ui.theme.FilesFlowSecondary
 import com.filesflow.ui.theme.FilesFlowSurfaceContainerHigh
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun RecentFileRow(
     file: FilesFlowFile,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onMoreClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -67,10 +70,11 @@ fun RecentFileRow(
         modifier = Modifier
             .scale(scale)
             .fillMaxWidth()
-            .clickable(
+            .combinedClickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick,
+                onLongClick = onLongClick,
             ),
         cornerRadius = 12.dp,
     ) {

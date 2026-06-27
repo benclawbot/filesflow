@@ -41,25 +41,47 @@ fun mediaPermissionRequest(): Array<String> {
     }
 }
 
-enum class StartupAccessRequest {
+enum class SystemAccessRequest {
     MediaPermissions,
     AllFilesAccess,
     None,
 }
 
-data class StartupAccessPromptState(
-    val requestedMediaAccess: Boolean = false,
-    val requestedAllFilesAccess: Boolean = false,
-)
-
-fun nextStartupAccessRequest(
+fun systemAccessRequestForCategory(
+    type: FileCategoryType,
     accessState: StorageAccessState,
-    promptState: StartupAccessPromptState,
-): StartupAccessRequest {
-    return when {
-        !accessState.hasAnyMediaAccess && !promptState.requestedMediaAccess -> StartupAccessRequest.MediaPermissions
-        !accessState.hasAllFilesAccess && !promptState.requestedAllFilesAccess -> StartupAccessRequest.AllFilesAccess
-        else -> StartupAccessRequest.None
+): SystemAccessRequest {
+    if (type == FileCategoryType.Apps) return SystemAccessRequest.None
+
+    return when (type.permissionKind) {
+        PermissionKind.Images -> if (accessState.hasImagesPermission || accessState.hasLegacyReadPermission || accessState.hasAllFilesAccess) {
+            SystemAccessRequest.None
+        } else {
+            SystemAccessRequest.MediaPermissions
+        }
+        PermissionKind.Videos -> if (accessState.hasVideosPermission || accessState.hasLegacyReadPermission || accessState.hasAllFilesAccess) {
+            SystemAccessRequest.None
+        } else {
+            SystemAccessRequest.MediaPermissions
+        }
+        PermissionKind.Audio -> if (accessState.hasAudioPermission || accessState.hasLegacyReadPermission || accessState.hasAllFilesAccess) {
+            SystemAccessRequest.None
+        } else {
+            SystemAccessRequest.MediaPermissions
+        }
+        PermissionKind.Files -> if (accessState.hasAllFilesAccess || accessState.hasLegacyReadPermission) {
+            SystemAccessRequest.None
+        } else {
+            SystemAccessRequest.AllFilesAccess
+        }
+    }
+}
+
+fun systemAccessRequestForBroadFiles(accessState: StorageAccessState): SystemAccessRequest {
+    return if (accessState.hasAllFilesAccess || accessState.hasLegacyReadPermission) {
+        SystemAccessRequest.None
+    } else {
+        SystemAccessRequest.AllFilesAccess
     }
 }
 

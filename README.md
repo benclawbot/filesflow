@@ -2,7 +2,7 @@
 
 ![FilesFlow banner](docs/assets/filesflow-banner.png)
 
-FilesFlow is a native Android file manager built with Kotlin and Jetpack Compose. It gives users a warm portrait dashboard for checking device storage, browsing common file categories, searching files, reviewing recent files, and performing copy, move, and delete actions through Android storage access.
+FilesFlow is a native Android file manager built with Kotlin and Jetpack Compose. It gives users a warm portrait dashboard for checking device storage, browsing common file categories, searching files, reviewing recent files, opening files with Android apps, and managing files with copy, move, rename, and delete actions through Android storage access.
 
 FilesFlow is a native Android app and is not deployed as a hosted web service.
 
@@ -14,7 +14,7 @@ The screenshot below was captured from the debug APK running on a connected Andr
 
 ## Functionality
 
-FilesFlow currently includes a status-bar-safe portrait app bar, a real internal-storage usage overview, live file-category summaries for Images, Videos, Docs, Downloads, Music, and Apps, a recent-files feed backed by MediaStore, search-by-name, category browsing, SAF folder browsing, and selected-file actions for copy, move, and delete. It also guides users through Android media permissions, Storage Access Framework folder selection, and all-files-access settings when broader browsing or file operations require them.
+FilesFlow currently includes a status-bar-safe portrait app bar, a real internal-storage usage overview, live file-category summaries for Images, Videos, Docs, Downloads, Music, and Apps, a recent-files feed backed by MediaStore or granted shared storage, search-by-name, category browsing, SAF folder browsing, Android file opening on tap, and long-press file actions for copy, move, rename, and delete. Categories, search results, and browsing open as dedicated file-list views with back navigation to the home dashboard. When a destination needs more Android storage access, FilesFlow launches the system access request and then continues to the requested location after access returns.
 
 The interface keeps the original FilesFlow design language: warm `#fff8f2` surfaces, serif headline typography, compact portrait spacing, rounded 8-12dp controls, and raised or recessed neumorphic panels.
 
@@ -38,15 +38,14 @@ flowchart TD
     H --> O["FilesFlowUiState"]
     O --> P["HomeDashboardScreen"]
     P --> Q["StorageOverviewCard"]
-    P --> R["PermissionPanel"]
-    P --> S["SearchAndBrowseCard"]
-    P --> T["CategoryGrid"]
-    P --> U["RecentFilesList"]
-    P --> V["FileBrowserSection"]
-    P --> W["FileActionsCard"]
+    P --> R["SearchAndBrowseCard"]
+    P --> S["CategoryGrid"]
+    P --> T["RecentFilesList"]
+    P --> U["FileBrowserSection"]
+    P --> V["FileActionsCard"]
 ```
 
-`FilesFlowApp` owns Android permission and picker launchers, `FilesFlowViewModel` owns dashboard and browser state, `AndroidFileManagerRepository` performs storage, MediaStore, SAF, direct-file, and app-package operations, and the `features/home/components` package renders the portrait-only Compose UI.
+`FilesFlowApp` owns Android permission and picker launchers plus pending destination resume, `FilesFlowViewModel` owns dashboard and browser state, `AndroidFileManagerRepository` performs storage, MediaStore, SAF, direct-file, and app-package operations, and the `features/home/components` package renders the portrait-only Compose UI.
 
 ## Installation
 
@@ -57,7 +56,7 @@ flowchart TD
 adb install -r app\build\outputs\apk\debug\app-debug.apk
 ```
 
-On first launch, FilesFlow requests Android file access for file-manager workflows. Use the in-app permission panel afterward to refresh access, choose a SAF destination folder for copy/move operations, or reopen Android all-files-access settings.
+FilesFlow asks for Android system access only when the user opens a category, search, or browser that needs it. Tap a file to open it with Android, or long-press a file to manage it. Use the file action sheet to choose a SAF destination folder for copy and move operations.
 
 ### Run from Android Studio
 

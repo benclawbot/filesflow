@@ -19,7 +19,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.filesflow.features.home.FileCategorySummary
 import com.filesflow.features.home.formatBytes
 import com.filesflow.features.home.toFileCategory
@@ -74,8 +76,12 @@ fun CategoryButton(
             Text(
                 text = "${summary.fileCount} • ${formatBytes(summary.totalBytes)}",
                 color = FilesFlowSecondary,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
+                ),
                 maxLines = 1,
+                textAlign = TextAlign.Center,
             )
         }
     }

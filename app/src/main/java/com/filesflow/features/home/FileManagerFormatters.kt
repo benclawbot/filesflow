@@ -46,9 +46,25 @@ fun inferCategoryType(name: String, mimeType: String?, path: String? = null): Fi
     val lowerMime = mimeType?.lowercase(Locale.US).orEmpty()
 
     return when {
-        lowerMime.startsWith("image/") -> FileCategoryType.Images
-        lowerMime.startsWith("video/") -> FileCategoryType.Videos
-        lowerMime.startsWith("audio/") -> FileCategoryType.Music
+        lowerMime.startsWith("image/") ||
+            lowerName.endsWith(".jpg") ||
+            lowerName.endsWith(".jpeg") ||
+            lowerName.endsWith(".png") ||
+            lowerName.endsWith(".gif") ||
+            lowerName.endsWith(".webp") ||
+            lowerName.endsWith(".heic") -> FileCategoryType.Images
+        lowerMime.startsWith("video/") ||
+            lowerName.endsWith(".mp4") ||
+            lowerName.endsWith(".mkv") ||
+            lowerName.endsWith(".mov") ||
+            lowerName.endsWith(".webm") ||
+            lowerName.endsWith(".avi") -> FileCategoryType.Videos
+        lowerMime.startsWith("audio/") ||
+            lowerName.endsWith(".mp3") ||
+            lowerName.endsWith(".m4a") ||
+            lowerName.endsWith(".flac") ||
+            lowerName.endsWith(".wav") ||
+            lowerName.endsWith(".ogg") -> FileCategoryType.Music
         lowerPath.contains("download") -> FileCategoryType.Downloads
         lowerName.endsWith(".apk") || lowerMime == "application/vnd.android.package-archive" -> FileCategoryType.Apps
         lowerMime.contains("pdf") ||

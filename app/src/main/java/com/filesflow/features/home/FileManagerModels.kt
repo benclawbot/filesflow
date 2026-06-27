@@ -37,7 +37,12 @@ enum class FileOperation {
 sealed interface BrowseMode {
     data object Home : BrowseMode
     data class Category(val type: FileCategoryType) : BrowseMode
-    data class Folder(val uri: Uri?, val displayName: String) : BrowseMode
+    data class Folder(
+        val uri: Uri?,
+        val displayName: String,
+        val path: String? = null,
+        val source: FileSource = FileSource.DirectFile,
+    ) : BrowseMode
     data class Search(val query: String) : BrowseMode
 }
 
@@ -78,9 +83,9 @@ data class StorageAccessState(
 }
 
 data class FilesFlowUiState(
-    val storageOverview: StorageOverview = previewStorageOverview,
-    val categories: List<FileCategorySummary> = previewFileCategorySummaries(),
-    val recentFiles: List<FilesFlowFile> = previewRecentFiles(),
+    val storageOverview: StorageOverview = emptyStorageOverview,
+    val categories: List<FileCategorySummary> = emptyFileCategorySummaries(),
+    val recentFiles: List<FilesFlowFile> = emptyList(),
     val visibleFiles: List<FilesFlowFile> = emptyList(),
     val browseMode: BrowseMode = BrowseMode.Home,
     val searchQuery: String = "",

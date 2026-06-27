@@ -33,6 +33,7 @@ fun StorageOverviewCard(
     usedLabel: String,
     totalLabel: String,
 ) {
+    val clampedPercent = usedPercent.coerceIn(0, 100)
     NeumorphicSurface(
         modifier = Modifier.fillMaxWidth(),
         cornerRadius = 12.dp,
@@ -60,7 +61,7 @@ fun StorageOverviewCard(
                     )
                 }
                 Text(
-                    text = "$usedPercent%",
+                    text = "$clampedPercent%",
                     color = FilesFlowPrimary,
                     style = MaterialTheme.typography.labelMedium,
                     textAlign = TextAlign.End,
@@ -76,12 +77,11 @@ fun StorageOverviewCard(
                     .background(MaterialTheme.colorScheme.background)
                     .padding(4.dp),
             ) {
-                val fillWidth = maxWidth * (usedPercent / 100f)
+                val fillWidth = maxWidth * (clampedPercent / 100f)
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
-                        .fillMaxWidth()
-                        .then(Modifier.width(fillWidth))
+                        .width(fillWidth)
                         .neumorphicRaised(999.dp)
                         .clip(RoundedCornerShape(999.dp))
                         .background(FilesFlowPrimaryContainer),

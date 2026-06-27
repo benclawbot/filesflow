@@ -1,6 +1,7 @@
 package com.filesflow.data
 
 import android.content.ContentUris
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -19,6 +20,7 @@ import com.filesflow.features.home.FilesFlowFile
 import com.filesflow.features.home.StorageOverview
 import com.filesflow.features.home.formatFileMetadata
 import com.filesflow.features.home.formatStorageLabel
+import com.filesflow.features.home.inferCategoryType
 import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
@@ -41,11 +43,12 @@ class AndroidFileManagerRepository(
     }
 
     override suspend fun getCategorySummaries(): List<FileCategorySummary> = withContext(Dispatchers.IO) {
+        val directFiles = if (canUseDirectSharedStorage()) listDirectFiles(limit = 2_000) else emptyList()
         FileCategoryType.entries.map { type ->
-            val files = if (type == FileCategoryType.Apps) {
-                listInstalledApps()
-            } else {
-                listCategoryInternal(type, 500)
+            val files = when {
+                type == FileCategoryType.Apps -> listInstalledApps()
+                directFiles.isNotEmpty() -> directFiles.filter { inferCategoryType(it.name, it.mimeType, it.path) == type }
+                else -> listCategoryInternal(type, 500)
             }
             FileCategorySummary(
                 type = type,
@@ -65,12 +68,25 @@ class AndroidFileManagerRepository(
     }
 
     override suspend fun listCategory(type: FileCategoryType): List<FilesFlowFile> = withContext(Dispatchers.IO) {
-        if (type == FileCategoryType.Apps) listInstalledApps() else listCategoryInternal(type, 200)
+        when {
+            type == FileCategoryType.Apps -> listInstalledApps()
+            canUseDirectSharedStorage() -> listDirectFiles(limit = 500)
+                .filter { inferCategoryType(it.name, it.mimeType, it.path) == type }
+                .sortedByDescending { it.modifiedAtMillis }
+                .take(200)
+            else -> listCategoryInternal(type, 200)
+        }
     }
 
     override suspend fun searchFiles(query: String): List<FilesFlowFile> = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
         if (trimmed.isBlank()) return@withContext emptyList()
+        if (canUseDirectSharedStorage()) {
+            return@withContext listDirectFiles(limit = 1_000)
+                .filter { it.name.contains(trimmed, ignoreCase = true) }
+                .sortedByDescending { it.modifiedAtMillis }
+                .take(100)
+        }
         queryFiles(
             selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?",
             selectionArgs = arrayOf("%$trimmed%"),
@@ -124,6 +140,21 @@ class AndroidFileManagerRepository(
             copied && deleted -> FileOperationStatus("Moved", "${file.name} was moved to ${destinationRoot.name ?: "selected folder"}.")
             copied -> FileOperationStatus("Copied only", "${file.name} was copied, but Android did not allow deleting the original.")
             else -> FileOperationStatus("Move failed", "FilesFlow could not move ${file.name}.")
+        }
+    }
+
+    override suspend fun rename(file: FilesFlowFile, newName: String): FileOperationStatus = withContext(Dispatchers.IO) {
+        val cleanedName = newName.trim()
+        if (cleanedName.isBlank()) {
+            return@withContext FileOperationStatus("Rename unavailable", "Enter a file name before renaming.")
+        }
+        if (file.source == FileSource.AppPackage) {
+            return@withContext FileOperationStatus("Rename unavailable", "Installed apps cannot be renamed from FilesFlow.")
+        }
+        if (renameInternal(file, cleanedName)) {
+            FileOperationStatus("Renamed", "${file.name} was renamed to $cleanedName.")
+        } else {
+            FileOperationStatus("Rename failed", "Android did not allow FilesFlow to rename ${file.name}.")
         }
     }
 
@@ -245,6 +276,35 @@ class AndroidFileManagerRepository(
         }
     }
 
+    private fun canUseDirectSharedStorage(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
+    }
+
+    private fun listDirectFiles(limit: Int): List<FilesFlowFile> {
+        @Suppress("DEPRECATION")
+        val root = Environment.getExternalStorageDirectory()
+        if (!root.canRead()) return emptyList()
+
+        val pending = ArrayDeque<File>()
+        pending.add(root)
+        val results = mutableListOf<FilesFlowFile>()
+
+        while (pending.isNotEmpty() && results.size < limit) {
+            val current = pending.removeFirst()
+            current.listFilesSafely()
+                .sortedWith(compareByDescending<File> { it.isDirectory }.thenBy { it.name.lowercase(Locale.US) })
+                .forEach { child ->
+                    if (child.isDirectory) {
+                        pending.add(child)
+                    } else if (child.isFile) {
+                        results += child.toDirectFileItem()
+                    }
+                }
+        }
+
+        return results
+    }
+
     private fun listInstalledApps(): List<FilesFlowFile> {
         return appContext.packageManager
             .getInstalledApplications(0)
@@ -311,6 +371,30 @@ class AndroidFileManagerRepository(
             FileSource.Saf -> file.uri?.let { DocumentFile.fromSingleUri(appContext, it)?.delete() } == true
             FileSource.DirectFile -> file.path?.let { File(it).delete() } == true
             FileSource.MediaStore -> file.uri?.let { resolver.delete(it, null, null) > 0 } == true
+            FileSource.AppPackage -> false
+        }
+    }.getOrDefault(false)
+
+    private fun renameInternal(file: FilesFlowFile, newName: String): Boolean = runCatching {
+        when (file.source) {
+            FileSource.Saf -> file.uri?.let { DocumentFile.fromSingleUri(appContext, it)?.renameTo(newName) } == true
+            FileSource.DirectFile -> {
+                val current = file.path?.let(::File) ?: return@runCatching false
+                val target = File(current.parentFile, newName)
+                current.renameTo(target)
+            }
+            FileSource.MediaStore -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val values = ContentValues().apply {
+                        put(MediaStore.Files.FileColumns.DISPLAY_NAME, newName)
+                    }
+                    file.uri?.let { resolver.update(it, values, null, null) > 0 } == true
+                } else {
+                    val current = file.path?.let(::File) ?: return@runCatching false
+                    val target = File(current.parentFile, newName)
+                    current.renameTo(target)
+                }
+            }
             FileSource.AppPackage -> false
         }
     }.getOrDefault(false)

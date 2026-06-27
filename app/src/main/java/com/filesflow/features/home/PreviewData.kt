@@ -6,6 +6,20 @@ val previewStorageOverview = StorageOverview(
     totalLabel = "128 GB Total",
 )
 
+val emptyStorageOverview = StorageOverview(
+    usedPercent = 0,
+    usedLabel = "0 B Used",
+    totalLabel = "0 B Total",
+)
+
+fun emptyFileCategorySummaries(): List<FileCategorySummary> = FileCategoryType.entries.map { type ->
+    FileCategorySummary(
+        type = type,
+        fileCount = 0,
+        totalBytes = 0L,
+    )
+}
+
 fun previewFileCategorySummaries(): List<FileCategorySummary> = FileCategoryType.entries.mapIndexed { index, type ->
     FileCategorySummary(
         type = type,

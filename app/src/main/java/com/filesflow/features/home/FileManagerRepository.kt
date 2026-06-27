@@ -12,6 +12,7 @@ interface FileManagerRepository {
     suspend fun listFolder(folder: FilesFlowFile): List<FilesFlowFile>
     suspend fun copyToSafFolder(file: FilesFlowFile): FileOperationStatus
     suspend fun moveToSafFolder(file: FilesFlowFile): FileOperationStatus
+    suspend fun rename(file: FilesFlowFile, newName: String): FileOperationStatus
     suspend fun delete(file: FilesFlowFile): FileOperationStatus
     fun persistSafFolder(uri: Uri)
     fun getPersistedSafFolderName(): String?

@@ -28,6 +28,7 @@ fun FileBrowserSection(
     isLoading: Boolean,
     onBackHome: () -> Unit,
     onFileClick: (FilesFlowFile) -> Unit,
+    onFileLongClick: (FilesFlowFile) -> Unit,
     onMoreClick: (FilesFlowFile) -> Unit,
 ) {
     Column {
@@ -66,6 +67,7 @@ fun FileBrowserSection(
                     RecentFileRow(
                         file = file,
                         onClick = { onFileClick(file) },
+                        onLongClick = { onFileLongClick(file) },
                         onMoreClick = { onMoreClick(file) },
                     )
                 }
