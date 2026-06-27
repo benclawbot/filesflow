@@ -41,6 +41,28 @@ fun mediaPermissionRequest(): Array<String> {
     }
 }
 
+enum class StartupAccessRequest {
+    MediaPermissions,
+    AllFilesAccess,
+    None,
+}
+
+data class StartupAccessPromptState(
+    val requestedMediaAccess: Boolean = false,
+    val requestedAllFilesAccess: Boolean = false,
+)
+
+fun nextStartupAccessRequest(
+    accessState: StorageAccessState,
+    promptState: StartupAccessPromptState,
+): StartupAccessRequest {
+    return when {
+        !accessState.hasAnyMediaAccess && !promptState.requestedMediaAccess -> StartupAccessRequest.MediaPermissions
+        !accessState.hasAllFilesAccess && !promptState.requestedAllFilesAccess -> StartupAccessRequest.AllFilesAccess
+        else -> StartupAccessRequest.None
+    }
+}
+
 fun allFilesAccessIntent(context: Context): Intent {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
         Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {

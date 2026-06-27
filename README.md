@@ -57,7 +57,7 @@ flowchart TD
 adb install -r app\build\outputs\apk\debug\app-debug.apk
 ```
 
-After launching the app, use the permission panel to grant media access, choose a SAF folder for folder browsing plus copy/move destinations, and open Android all-files-access settings when broader local file browsing is needed.
+On first launch, FilesFlow requests Android file access for file-manager workflows. Use the in-app permission panel afterward to refresh access, choose a SAF destination folder for copy/move operations, or reopen Android all-files-access settings.
 
 ### Run from Android Studio
 

@@ -69,7 +69,7 @@ class FilesFlowViewModel(
         }
         _uiState.update { it.copy(isLoading = true, browseMode = BrowseMode.Folder(file.uri, file.name), selectedFile = null) }
         viewModelScope.launch {
-            val files = runCatching { repository.listFolder(file.uri) }.getOrDefault(emptyList())
+            val files = runCatching { repository.listFolder(file) }.getOrDefault(emptyList())
             _uiState.update { it.copy(visibleFiles = files, isLoading = false) }
         }
     }

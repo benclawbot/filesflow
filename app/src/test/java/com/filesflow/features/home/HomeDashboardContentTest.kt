@@ -59,4 +59,41 @@ class HomeDashboardContentTest {
         assertEquals(FileCategoryType.entries.toList(), previewFileCategorySummaries().map { it.type })
         assertTrue(previewRecentFiles().all { it.name.isNotBlank() && it.metadata.isNotBlank() })
     }
+
+    @Test
+    fun startupAccessFlowRequestsMissingAccessInOrder() {
+        val noAccess = StorageAccessState()
+
+        assertEquals(
+            StartupAccessRequest.MediaPermissions,
+            nextStartupAccessRequest(noAccess, StartupAccessPromptState()),
+        )
+
+        assertEquals(
+            StartupAccessRequest.AllFilesAccess,
+            nextStartupAccessRequest(
+                noAccess.copy(hasImagesPermission = true),
+                StartupAccessPromptState(requestedMediaAccess = true),
+            ),
+        )
+
+        assertEquals(
+            StartupAccessRequest.None,
+            nextStartupAccessRequest(
+                noAccess.copy(hasImagesPermission = true, hasAllFilesAccess = true),
+                StartupAccessPromptState(requestedMediaAccess = true, requestedAllFilesAccess = true),
+            ),
+        )
+
+        assertEquals(
+            StartupAccessRequest.None,
+            nextStartupAccessRequest(
+                noAccess.copy(hasImagesPermission = true, hasAllFilesAccess = true, hasSafFolder = true),
+                StartupAccessPromptState(
+                    requestedMediaAccess = true,
+                    requestedAllFilesAccess = true,
+                ),
+            ),
+        )
+    }
 }

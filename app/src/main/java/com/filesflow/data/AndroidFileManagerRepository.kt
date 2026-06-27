@@ -90,8 +90,18 @@ class AndroidFileManagerRepository(
         if (root.canRead()) root.listFilesSafely().map { it.toDirectFileItem() } else emptyList()
     }
 
-    override suspend fun listFolder(uri: Uri?): List<FilesFlowFile> = withContext(Dispatchers.IO) {
-        if (uri == null) listBrowseRoot() else listFolderInternal(uri)
+    override suspend fun listFolder(folder: FilesFlowFile): List<FilesFlowFile> = withContext(Dispatchers.IO) {
+        when (folder.source) {
+            FileSource.DirectFile -> folder.path
+                ?.let(::File)
+                ?.takeIf { it.isDirectory && it.canRead() }
+                ?.listFilesSafely()
+                ?.map { it.toDirectFileItem() }
+                .orEmpty()
+            FileSource.Saf -> folder.uri?.let { listFolderInternal(it) }.orEmpty()
+            FileSource.MediaStore,
+            FileSource.AppPackage -> emptyList()
+        }
     }
 
     override suspend fun copyToSafFolder(file: FilesFlowFile): FileOperationStatus = withContext(Dispatchers.IO) {
