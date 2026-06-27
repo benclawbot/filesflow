@@ -14,7 +14,7 @@ The screenshot below was captured from the debug APK running on a connected Andr
 
 ## Functionality
 
-FilesFlow currently includes a status-bar-safe portrait app bar, a real internal-storage usage overview, live file-category summaries for Images, Videos, Docs, Downloads, Music, and Apps, a recent-files feed backed by MediaStore or granted shared storage, search-by-name, category browsing, SAF folder browsing, Android file opening on tap, and long-press file actions for copy, move, rename, and delete. Categories, search results, and browsing open as dedicated file-list views with back navigation to the home dashboard. When a destination needs more Android storage access, FilesFlow launches the system access request and then continues to the requested location after access returns.
+FilesFlow currently includes a status-bar-safe portrait app bar, a real internal-storage usage overview, live file-category summaries for Images, Videos, Docs, Downloads, Music, and Apps, a recent-files feed backed by MediaStore or granted shared storage, search-by-name, category browsing, SAF folder browsing, Android file opening on tap, and long-press file actions for copy, move, rename, and delete. Tapping the Internal Storage overview opens the phone folder root. Categories, search results, and browsing open as dedicated views with back navigation to the home dashboard, and the Images category uses a fast cached 3 x 6 thumbnail gallery. When a destination needs more Android storage access, FilesFlow launches the system access request and then continues to the requested location after access returns.
 
 The interface keeps the original FilesFlow design language: warm `#fff8f2` surfaces, serif headline typography, compact portrait spacing, rounded 8-12dp controls, and raised or recessed neumorphic panels.
 
@@ -42,6 +42,7 @@ flowchart TD
     P --> S["CategoryGrid"]
     P --> T["RecentFilesList"]
     P --> U["FileBrowserSection"]
+    U --> W["ImageGalleryGrid"]
     P --> V["FileActionsCard"]
 ```
 

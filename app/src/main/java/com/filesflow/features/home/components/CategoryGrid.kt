@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.filesflow.features.home.FileCategorySummary
 import com.filesflow.features.home.FileCategoryType
-import com.filesflow.ui.theme.FilesFlowSecondary
+import com.filesflow.ui.theme.FilesFlowAccentOrange
 
 @Composable
 fun CategoryGrid(
@@ -23,7 +23,7 @@ fun CategoryGrid(
         Text(
             modifier = Modifier.padding(start = 4.dp, bottom = 16.dp),
             text = "Categories",
-            color = FilesFlowSecondary,
+            color = FilesFlowAccentOrange,
             style = MaterialTheme.typography.labelMedium,
         )
 

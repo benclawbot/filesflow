@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.filesflow.features.home.BrowseMode
+import com.filesflow.features.home.FileCategoryType
 import com.filesflow.features.home.FilesFlowFile
 import com.filesflow.ui.theme.FilesFlowOnSurface
 import com.filesflow.ui.theme.FilesFlowSecondary
@@ -61,6 +62,12 @@ fun FileBrowserSection(
 
         if (!isLoading && files.isEmpty()) {
             EmptyFilesCard()
+        } else if (browseMode is BrowseMode.Category && browseMode.type == FileCategoryType.Images) {
+            ImageGalleryGrid(
+                files = files,
+                onImageClick = onFileClick,
+                onImageLongClick = onFileLongClick,
+            )
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 files.forEach { file ->

@@ -13,6 +13,11 @@ class HomeDashboardContentTest {
     }
 
     @Test
+    fun imageCategoryGalleryShowsThreeBySixVisibleSlots() {
+        assertEquals(18, com.filesflow.features.home.components.ImageGalleryVisibleSlots)
+    }
+
+    @Test
     fun dashboardStaticContentMatchesSpec() {
         assertEquals("FilesFlow", FilesFlowAppName)
 

@@ -37,13 +37,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.combinedClickable
+import coil.compose.AsyncImage
+import coil.request.CachePolicy
+import coil.request.ImageRequest
 import com.filesflow.features.home.FileSource
 import com.filesflow.features.home.FilesFlowFile
 import com.filesflow.ui.theme.FilesFlowOnSurface
@@ -116,6 +120,7 @@ fun RecentFileRow(
 @Composable
 fun RecentFileLeading(file: FilesFlowFile) {
     if (file.mimeType?.startsWith("image/") == true && !file.isDirectory) {
+        val context = LocalContext.current
         Box(
             modifier = Modifier
                 .size(48.dp)
@@ -128,16 +133,21 @@ fun RecentFileLeading(file: FilesFlowFile) {
                             Color(0xFFF6EFE6),
                         ),
                     ),
-                )
-                .drawBehind {
-                    drawLine(
-                        color = Color.White.copy(alpha = 0.55f),
-                        start = Offset(size.width * 0.12f, size.height * 0.78f),
-                        end = Offset(size.width * 0.86f, size.height * 0.18f),
-                        strokeWidth = 3.dp.toPx(),
-                    )
-                },
-        )
+                ),
+        ) {
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(file.uri ?: file.path)
+                    .size(128)
+                    .crossfade(false)
+                    .memoryCachePolicy(CachePolicy.ENABLED)
+                    .diskCachePolicy(CachePolicy.ENABLED)
+                    .build(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         return
     }
 

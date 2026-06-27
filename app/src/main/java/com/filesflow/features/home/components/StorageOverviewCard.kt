@@ -1,6 +1,7 @@
 package com.filesflow.features.home.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.filesflow.ui.theme.FilesFlowAccentOrange
 import com.filesflow.ui.theme.FilesFlowOnSecondaryContainer
 import com.filesflow.ui.theme.FilesFlowOnSurface
 import com.filesflow.ui.theme.FilesFlowPrimary
@@ -32,10 +34,13 @@ fun StorageOverviewCard(
     usedPercent: Int,
     usedLabel: String,
     totalLabel: String,
+    onClick: (() -> Unit)? = null,
 ) {
     val clampedPercent = usedPercent.coerceIn(0, 100)
     NeumorphicSurface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         cornerRadius = 12.dp,
     ) {
         Column(
@@ -51,7 +56,7 @@ fun StorageOverviewCard(
                 Column {
                     Text(
                         text = "Storage",
-                        color = FilesFlowSecondary,
+                        color = FilesFlowAccentOrange,
                         style = MaterialTheme.typography.labelMedium,
                     )
                     Text(

@@ -42,6 +42,7 @@ import com.filesflow.features.home.components.FilesFlowTopBar
 import com.filesflow.features.home.components.NeumorphicSurface
 import com.filesflow.features.home.components.RecentFilesList
 import com.filesflow.features.home.components.StorageOverviewCard
+import com.filesflow.ui.theme.FilesFlowAccentOrange
 import com.filesflow.ui.theme.FilesFlowBackground
 import com.filesflow.ui.theme.FilesFlowOnSurface
 import com.filesflow.ui.theme.FilesFlowPrimary
@@ -112,6 +113,7 @@ fun HomeDashboardScreen(
                         usedPercent = uiState.storageOverview.usedPercent,
                         usedLabel = uiState.storageOverview.usedLabel,
                         totalLabel = uiState.storageOverview.totalLabel,
+                        onClick = onOpenBrowseRoot,
                     )
                     SearchAndBrowseCard(
                         query = uiState.searchQuery,
@@ -186,6 +188,7 @@ private fun SearchAndBrowseCard(
                 TextHeader(
                     modifier = Modifier.weight(1f),
                     title = "Find Files",
+                    titleColor = FilesFlowAccentOrange,
                     subtitle = "Search by name or browse granted storage",
                 )
                 IconButton(onClick = onBrowse) {
@@ -270,11 +273,12 @@ private fun TextHeader(
     title: String,
     subtitle: String,
     modifier: Modifier = Modifier,
+    titleColor: androidx.compose.ui.graphics.Color = FilesFlowOnSurface,
 ) {
     Column(modifier = modifier) {
         androidx.compose.material3.Text(
             text = title,
-            color = FilesFlowOnSurface,
+            color = titleColor,
             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
