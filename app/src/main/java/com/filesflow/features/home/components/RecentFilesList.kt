@@ -1,5 +1,6 @@
 package com.filesflow.features.home.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,12 +13,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import com.filesflow.features.home.RecentFileItem
+import com.filesflow.features.home.FilesFlowFile
 import com.filesflow.ui.theme.FilesFlowPrimary
 import com.filesflow.ui.theme.FilesFlowSecondary
 
 @Composable
-fun RecentFilesList(files: List<RecentFileItem>) {
+fun RecentFilesList(
+    files: List<FilesFlowFile>,
+    onViewAll: () -> Unit,
+    onFileClick: (FilesFlowFile) -> Unit,
+    onMoreClick: (FilesFlowFile) -> Unit,
+) {
     Column {
         Row(
             modifier = Modifier
@@ -36,12 +42,17 @@ fun RecentFilesList(files: List<RecentFileItem>) {
                 color = FilesFlowPrimary,
                 style = MaterialTheme.typography.labelSmall,
                 textDecoration = TextDecoration.Underline,
+                modifier = Modifier.clickable(onClick = onViewAll),
             )
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             files.forEach { file ->
-                RecentFileRow(file = file)
+                RecentFileRow(
+                    file = file,
+                    onClick = { onFileClick(file) },
+                    onMoreClick = { onMoreClick(file) },
+                )
             }
         }
     }

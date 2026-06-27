@@ -10,11 +10,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.filesflow.features.home.FileCategory
+import com.filesflow.features.home.FileCategorySummary
+import com.filesflow.features.home.FileCategoryType
 import com.filesflow.ui.theme.FilesFlowSecondary
 
 @Composable
-fun CategoryGrid(categories: List<FileCategory>) {
+fun CategoryGrid(
+    summaries: List<FileCategorySummary>,
+    onCategoryClick: (FileCategoryType) -> Unit,
+) {
     Column {
         Text(
             modifier = Modifier.padding(start = 4.dp, bottom = 16.dp),
@@ -24,15 +28,16 @@ fun CategoryGrid(categories: List<FileCategory>) {
         )
 
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            categories.chunked(3).forEach { rowItems ->
+            summaries.chunked(3).forEach { rowItems ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    rowItems.forEach { category ->
+                    rowItems.forEach { summary ->
                         CategoryButton(
                             modifier = Modifier.weight(1f),
-                            category = category,
+                            summary = summary,
+                            onClick = { onCategoryClick(summary.type) },
                         )
                     }
                 }

@@ -20,14 +20,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.unit.dp
-import com.filesflow.features.home.FileCategory
+import com.filesflow.features.home.FileCategorySummary
+import com.filesflow.features.home.formatBytes
+import com.filesflow.features.home.toFileCategory
 import com.filesflow.ui.theme.FilesFlowOnSurface
+import com.filesflow.ui.theme.FilesFlowSecondary
 
 @Composable
 fun CategoryButton(
-    category: FileCategory,
+    summary: FileCategorySummary,
     modifier: Modifier = Modifier,
+    onClick: () -> Unit,
 ) {
+    val category = summary.type.toFileCategory()
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -43,7 +48,7 @@ fun CategoryButton(
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = {},
+                onClick = onClick,
             ),
         cornerRadius = 12.dp,
         recessed = isPressed,
@@ -65,6 +70,12 @@ fun CategoryButton(
                 text = category.label,
                 color = FilesFlowOnSurface,
                 style = MaterialTheme.typography.labelSmall,
+            )
+            Text(
+                text = "${summary.fileCount} • ${formatBytes(summary.totalBytes)}",
+                color = FilesFlowSecondary,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
             )
         }
     }

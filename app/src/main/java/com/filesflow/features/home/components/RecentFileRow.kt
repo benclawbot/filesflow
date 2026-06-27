@@ -16,7 +16,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Article
+import androidx.compose.material.icons.rounded.Android
+import androidx.compose.material.icons.rounded.AudioFile
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.PictureAsPdf
+import androidx.compose.material.icons.rounded.VideoFile
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,14 +43,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.filesflow.features.home.RecentFileItem
+import com.filesflow.features.home.FileSource
+import com.filesflow.features.home.FilesFlowFile
 import com.filesflow.ui.theme.FilesFlowOnSurface
 import com.filesflow.ui.theme.FilesFlowOnSurfaceVariant
 import com.filesflow.ui.theme.FilesFlowSecondary
 import com.filesflow.ui.theme.FilesFlowSurfaceContainerHigh
 
 @Composable
-fun RecentFileRow(file: RecentFileItem) {
+fun RecentFileRow(
+    file: FilesFlowFile,
+    onClick: () -> Unit,
+    onMoreClick: () -> Unit,
+) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -57,7 +70,7 @@ fun RecentFileRow(file: RecentFileItem) {
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = {},
+                onClick = onClick,
             ),
         cornerRadius = 12.dp,
     ) {
@@ -85,7 +98,7 @@ fun RecentFileRow(file: RecentFileItem) {
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
-            IconButton(onClick = {}) {
+            IconButton(onClick = onMoreClick) {
                 Icon(
                     imageVector = Icons.Rounded.MoreVert,
                     contentDescription = "More options for ${file.name}",
@@ -97,8 +110,8 @@ fun RecentFileRow(file: RecentFileItem) {
 }
 
 @Composable
-private fun RecentFileLeading(file: RecentFileItem) {
-    if (file.hasThumbnail) {
+fun RecentFileLeading(file: FilesFlowFile) {
+    if (file.mimeType?.startsWith("image/") == true && !file.isDirectory) {
         Box(
             modifier = Modifier
                 .size(48.dp)
@@ -136,7 +149,16 @@ private fun RecentFileLeading(file: RecentFileItem) {
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = file.icon,
+                imageVector = when {
+                    file.isDirectory -> Icons.Rounded.Folder
+                    file.source == FileSource.AppPackage -> Icons.Rounded.Android
+                    file.mimeType?.startsWith("video/") == true -> Icons.Rounded.VideoFile
+                    file.mimeType?.startsWith("audio/") == true -> Icons.Rounded.AudioFile
+                    file.mimeType?.contains("pdf") == true -> Icons.Rounded.PictureAsPdf
+                    file.mimeType?.startsWith("image/") == true -> Icons.Rounded.Image
+                    file.mimeType?.contains("document") == true -> Icons.AutoMirrored.Rounded.Article
+                    else -> Icons.Rounded.Description
+                },
                 contentDescription = null,
                 tint = FilesFlowOnSurfaceVariant,
             )
