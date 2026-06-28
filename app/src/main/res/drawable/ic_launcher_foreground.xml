@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FilesFlow launcher foreground.
+
+  Designed to fill the visible shape edge-to-edge on both square and round
+  launchers. Geometry is intentionally larger than the standard 72dp safe
+  zone so the F reaches the round icon's circumference (a typical round
+  launcher masks at radius = 54 units in a 108 viewport).
+
+  Geometry (viewport 108 units), all coordinates visually centered around
+  (54, 54):
+
+    stem:        x = 14..40 (width 26)  y = 16..92 (height 76)
+    top arm:     y = 16..36  (height 20)  x = 14..94 (length 80)
+    middle arm:  y = 46..64  (height 18)  x = 14..78 (length 64)
+
+  The F's bounding box is x [14..94] y [16..92] -> center (54, 54).
+  Strokes are square so they sit flush against the round mask edge with no
+  reveal of the background color.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#5B4A3A"
+        android:pathData="M14,16 L94,16 L94,36 L40,36 L40,46 L78,46 L78,64 L40,64 L40,92 L14,92 Z" />
+</vector>
