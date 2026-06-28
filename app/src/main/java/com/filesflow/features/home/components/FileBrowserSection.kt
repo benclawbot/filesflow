@@ -35,6 +35,7 @@ import com.filesflow.features.home.BrowseMode
 import com.filesflow.features.home.CategoryFolderFilter
 import com.filesflow.features.home.FileCategoryType
 import com.filesflow.features.home.FilesFlowFile
+import com.filesflow.features.home.favoriteFolderIdFor
 import com.filesflow.features.home.isAllVisibleSelected
 import com.filesflow.ui.theme.FilesFlowBackground
 import com.filesflow.ui.theme.FilesFlowOnSurface
@@ -51,12 +52,14 @@ fun FileBrowserSection(
     selectedCategoryFolderId: String? = null,
     isSelectionMode: Boolean = false,
     selectedFileIds: Set<String> = emptySet(),
+    favoriteFolderIds: Set<String> = emptySet(),
     destinationPickerActive: Boolean = false,
     needsStorageAccess: Boolean = false,
     onBackHome: () -> Unit,
     onFileClick: (FilesFlowFile) -> Unit,
     onFileLongClick: (FilesFlowFile) -> Unit,
     onMoreClick: (FilesFlowFile) -> Unit,
+    onToggleFavoriteFolder: (FilesFlowFile) -> Unit = {},
     onSelectAllToggle: () -> Unit = {},
     onCategoryFolderClick: (CategoryFolderFilter) -> Unit = {},
     onRequestAccess: () -> Unit = {},
@@ -129,13 +132,21 @@ fun FileBrowserSection(
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 files.forEach { file ->
+                    val favoriteId = favoriteFolderIdFor(file)
+                    val favoriteClick = if (file.isDirectory && !destinationPickerActive) {
+                        { onToggleFavoriteFolder(file) }
+                    } else {
+                        null
+                    }
                     RecentFileRow(
                         file = file,
                         isSelectionMode = isSelectionMode,
                         isSelected = file.id in selectedFileIds,
+                        isFavoriteFolder = file.isDirectory && favoriteId in favoriteFolderIds,
                         onClick = { onFileClick(file) },
                         onLongClick = { onFileLongClick(file) },
                         onMoreClick = { onMoreClick(file) },
+                        onFavoriteClick = favoriteClick,
                     )
                 }
             }

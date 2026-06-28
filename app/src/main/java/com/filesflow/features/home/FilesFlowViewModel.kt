@@ -21,6 +21,7 @@ class FilesFlowViewModel(
                 isLoading = true,
                 accessState = accessState,
                 destinationFolderName = repository.getPersistedSafFolderName(),
+                favoriteFolders = repository.getFavoriteFolders(),
             )
         }
         viewModelScope.launch {
@@ -32,6 +33,7 @@ class FilesFlowViewModel(
                     storageOverview = storage,
                     categories = categories,
                     recentFiles = recentFiles,
+                    favoriteFolders = repository.getFavoriteFolders(),
                     isLoading = false,
                 )
             }
@@ -39,7 +41,13 @@ class FilesFlowViewModel(
     }
 
     fun updateAccessState(accessState: StorageAccessState) {
-        _uiState.update { it.copy(accessState = accessState, destinationFolderName = repository.getPersistedSafFolderName()) }
+        _uiState.update {
+            it.copy(
+                accessState = accessState,
+                destinationFolderName = repository.getPersistedSafFolderName(),
+                favoriteFolders = repository.getFavoriteFolders(),
+            )
+        }
     }
 
     fun openHome() {
@@ -94,6 +102,10 @@ class FilesFlowViewModel(
         }
     }
 
+    fun openFavoriteFolder(folder: FavoriteFolder) {
+        openFolder(folder.toFilesFlowFile())
+    }
+
     fun openFolder(file: FilesFlowFile) {
         if (!file.isDirectory) {
             return
@@ -134,6 +146,18 @@ class FilesFlowViewModel(
                 operationStatus = FileOperationStatus(
                     title = "Open failed",
                     detail = "Android could not find an app to open $fileName.",
+                ),
+                isLoading = false,
+            )
+        }
+    }
+
+    fun showPrintFailed(fileName: String) {
+        _uiState.update {
+            it.copy(
+                operationStatus = FileOperationStatus(
+                    title = "Print unavailable",
+                    detail = "Android could not prepare $fileName for printing.",
                 ),
                 isLoading = false,
             )
@@ -232,6 +256,17 @@ class FilesFlowViewModel(
         }
     }
 
+    fun toggleFavoriteFolder(folder: FilesFlowFile) {
+        val status = repository.toggleFavoriteFolder(folder)
+        _uiState.update {
+            it.copy(
+                favoriteFolders = repository.getFavoriteFolders(),
+                operationStatus = status,
+                selectedFile = null,
+            )
+        }
+    }
+
     fun dismissActions() {
         _uiState.update { it.copy(selectedFile = null) }
     }
@@ -304,6 +339,20 @@ class FilesFlowViewModel(
                 mode = selection.returnBrowseMode,
                 selectedCategoryFolderId = selection.returnSelectedCategoryFolderId,
             )
+        }
+    }
+
+    fun confirmFavoriteDestination(folder: FavoriteFolder) {
+        val selection = _uiState.value.destinationSelection ?: return
+        _uiState.update { it.copy(isLoading = true, selectedFile = null, selectedFileIds = emptySet()) }
+        viewModelScope.launch {
+            val status = runDestinationOperation(selection, folder.toFilesFlowFile())
+            restoreBrowseMode(
+                mode = selection.returnBrowseMode,
+                selectedCategoryFolderId = selection.returnSelectedCategoryFolderId,
+                status = status,
+            )
+            refresh()
         }
     }
 

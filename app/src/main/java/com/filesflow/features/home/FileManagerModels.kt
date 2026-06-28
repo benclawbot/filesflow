@@ -39,6 +39,14 @@ data class CategoryFolderFilter(
     val name: String,
 )
 
+data class FavoriteFolder(
+    val id: String,
+    val name: String,
+    val uri: Uri?,
+    val path: String?,
+    val source: FileSource,
+)
+
 data class DestinationSelection(
     val operation: FileOperation,
     val files: List<FilesFlowFile>,
@@ -101,6 +109,7 @@ data class FilesFlowUiState(
     val storageOverview: StorageOverview = emptyStorageOverview,
     val categories: List<FileCategorySummary> = emptyFileCategorySummaries(),
     val recentFiles: List<FilesFlowFile> = emptyList(),
+    val favoriteFolders: List<FavoriteFolder> = emptyList(),
     val visibleFiles: List<FilesFlowFile> = emptyList(),
     val allCategoryFiles: List<FilesFlowFile> = emptyList(),
     val categoryFolderFilters: List<CategoryFolderFilter> = emptyList(),
@@ -117,6 +126,9 @@ data class FilesFlowUiState(
 ) {
     val isSelectionMode: Boolean
         get() = selectedFileIds.isNotEmpty()
+
+    val favoriteFolderIds: Set<String>
+        get() = favoriteFolders.map { it.id }.toSet()
 }
 
 fun toggledSelectedFileIds(currentSelection: Set<String>, file: FilesFlowFile): Set<String> {
@@ -184,6 +196,30 @@ fun destinationFolderForBrowseMode(mode: BrowseMode, browseRootFolder: FilesFlow
         is BrowseMode.Category,
         is BrowseMode.Search -> null
     }
+}
+
+fun favoriteFolderIdFor(file: FilesFlowFile): String {
+    return when (file.source) {
+        FileSource.Saf -> "saf:${file.uri}"
+        FileSource.DirectFile -> "file:${file.path}"
+        FileSource.MediaStore -> "media:${file.uri ?: file.id}"
+        FileSource.AppPackage -> "app:${file.id}"
+    }
+}
+
+fun FavoriteFolder.toFilesFlowFile(): FilesFlowFile {
+    return FilesFlowFile(
+        id = id,
+        name = name,
+        metadata = "Favorite folder",
+        uri = uri,
+        path = path,
+        mimeType = null,
+        sizeBytes = 0L,
+        modifiedAtMillis = 0L,
+        source = source,
+        isDirectory = true,
+    )
 }
 
 private fun FilesFlowFile.categoryFolderId(): String? {
