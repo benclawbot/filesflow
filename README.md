@@ -1,4 +1,4 @@
-# FilesFlow
+# FilesFlow - fast and elegant android file manager
 
 ![FilesFlow banner](docs/assets/filesflow-banner.png)
 
