@@ -7,7 +7,7 @@ enum class FileCategoryType(
     val permissionKind: PermissionKind,
 ) {
     Images("Images", PermissionKind.Images),
-    Videos("Videos", PermissionKind.Files),
+    Videos("Videos", PermissionKind.Videos),
     Docs("Docs", PermissionKind.Files),
     Downloads("Downloads", PermissionKind.Files),
     Music("Music", PermissionKind.Audio),
