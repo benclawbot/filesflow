@@ -30,6 +30,7 @@ import com.filesflow.features.home.currentStorageAccessState
 import com.filesflow.features.home.fileOpenIntent
 import com.filesflow.features.home.fileShareIntent
 import com.filesflow.features.home.mediaPermissionRequest
+import com.filesflow.features.home.printFile
 import com.filesflow.features.home.systemAccessRequestForBroadFiles
 import com.filesflow.features.home.systemAccessRequestForCategory
 import com.filesflow.ui.theme.FilesFlowTheme
@@ -167,6 +168,13 @@ fun FilesFlowApp() {
         }
     }
 
+    fun printFileFromAction(file: FilesFlowFile) {
+        val started = printFile(context, file)
+        if (!started) {
+            viewModel.showPrintFailed(file.name)
+        }
+    }
+
     fun shareFiles(files: List<FilesFlowFile>) {
         val intent = fileShareIntent(context, files)
         if (intent == null) {
@@ -222,6 +230,7 @@ fun FilesFlowApp() {
                 openWithAccess(PendingFilesFlowAction.Search(query))
             },
             onOpenFile = ::openFile,
+            onPrintFile = ::printFileFromAction,
             onShareFiles = ::shareFiles,
         )
     }
