@@ -3,6 +3,7 @@ package com.filesflow.features.home.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
@@ -23,6 +24,8 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PictureAsPdf
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.VideoFile
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,9 +41,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.combinedClickable
 import com.filesflow.features.home.FileSource
 import com.filesflow.features.home.FilesFlowFile
+import com.filesflow.ui.theme.FilesFlowAccentOrange
 import com.filesflow.ui.theme.FilesFlowOnSurface
 import com.filesflow.ui.theme.FilesFlowOnSurfaceVariant
 import com.filesflow.ui.theme.FilesFlowPrimaryContainer
@@ -53,9 +56,11 @@ fun RecentFileRow(
     file: FilesFlowFile,
     isSelectionMode: Boolean = false,
     isSelected: Boolean = false,
+    isFavoriteFolder: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onMoreClick: () -> Unit,
+    onFavoriteClick: (() -> Unit)? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -101,13 +106,22 @@ fun RecentFileRow(
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
+            if (!isSelectionMode && onFavoriteClick != null) {
+                IconButton(onClick = onFavoriteClick) {
+                    Icon(
+                        imageVector = if (isFavoriteFolder) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                        contentDescription = "Toggle favorite folder",
+                        tint = if (isFavoriteFolder) FilesFlowAccentOrange else FilesFlowSecondary,
+                    )
+                }
+            }
             if (isSelectionMode) {
                 SelectionIndicator(selected = isSelected)
             } else {
                 IconButton(onClick = onMoreClick) {
                     Icon(
                         imageVector = Icons.Rounded.MoreVert,
-                        contentDescription = "More options for ${file.name}",
+                        contentDescription = "More options for file",
                         tint = FilesFlowSecondary,
                     )
                 }
