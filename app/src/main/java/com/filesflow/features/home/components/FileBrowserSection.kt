@@ -5,13 +5,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +30,7 @@ import com.filesflow.features.home.BrowseMode
 import com.filesflow.features.home.CategoryFolderFilter
 import com.filesflow.features.home.FileCategoryType
 import com.filesflow.features.home.FilesFlowFile
+import com.filesflow.features.home.isAllVisibleSelected
 import com.filesflow.ui.theme.FilesFlowBackground
 import com.filesflow.ui.theme.FilesFlowOnSurface
 import com.filesflow.ui.theme.FilesFlowPrimary
@@ -46,8 +51,11 @@ fun FileBrowserSection(
     onFileClick: (FilesFlowFile) -> Unit,
     onFileLongClick: (FilesFlowFile) -> Unit,
     onMoreClick: (FilesFlowFile) -> Unit,
+    onSelectAllToggle: () -> Unit = {},
     onCategoryFolderClick: (CategoryFolderFilter) -> Unit = {},
 ) {
+    val showSelectAll = !isLoading && files.isNotEmpty() && !destinationPickerActive
+    val allVisibleSelected = isAllVisibleSelected(files, selectedFileIds)
     Column {
         Row(
             modifier = Modifier
@@ -62,7 +70,8 @@ fun FileBrowserSection(
                     tint = FilesFlowSecondary,
                 )
             }
-            Column {
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = browseTitle(browseMode),
                     color = FilesFlowOnSurface,
@@ -77,6 +86,15 @@ fun FileBrowserSection(
                     color = FilesFlowSecondary,
                     style = MaterialTheme.typography.labelSmall,
                 )
+            }
+            if (showSelectAll) {
+                IconButton(onClick = onSelectAllToggle) {
+                    Icon(
+                        imageVector = if (allVisibleSelected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                        contentDescription = if (allVisibleSelected) "Clear selection" else "Select all ${files.size} files",
+                        tint = if (allVisibleSelected) FilesFlowPrimary else FilesFlowSecondary,
+                    )
+                }
             }
         }
 

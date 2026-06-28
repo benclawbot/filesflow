@@ -197,6 +197,29 @@ class FilesFlowViewModel(
         _uiState.update { it.copy(selectedFileIds = emptySet()) }
     }
 
+    /**
+     * Toggle every visible file in the current category view into/out of the
+     * multi-selection. Visible-files-aware so it respects any active
+     * category-folder filter. If nothing is selected, all visible files are
+     * added; if everything visible is already selected, the selection is
+     * cleared.
+     */
+    fun toggleSelectAllVisible() {
+        _uiState.update { state ->
+            val visible = state.visibleFiles
+            when {
+                visible.isEmpty() -> state.copy(selectedFileIds = emptySet(), selectedFile = null)
+                isAllVisibleSelected(visible, state.selectedFileIds) ->
+                    state.copy(selectedFileIds = emptySet(), selectedFile = null)
+                else ->
+                    state.copy(
+                        selectedFileIds = selectAllVisibleFileIds(visible),
+                        selectedFile = null,
+                    )
+            }
+        }
+    }
+
     fun toggleCategoryFolder(folder: CategoryFolderFilter) {
         _uiState.update {
             val nextSelectedFolderId = toggledCategoryFolderSelection(it.selectedCategoryFolderId, folder.id)

@@ -51,6 +51,7 @@ import com.filesflow.features.home.components.FileActionsCard
 import com.filesflow.features.home.components.FileBrowserSection
 import com.filesflow.features.home.components.CategoryGrid
 import com.filesflow.features.home.components.FilesFlowTopBar
+import com.filesflow.features.home.components.ImageViewer
 import com.filesflow.features.home.components.NeumorphicSurface
 import com.filesflow.features.home.components.RecentFilesList
 import com.filesflow.features.home.components.StorageOverviewCard
@@ -161,6 +162,9 @@ fun HomeDashboardScreen(
                         },
                         onMoreClick = { file ->
                             if (!isDestinationPicker) viewModel.selectFile(file)
+                        },
+                        onSelectAllToggle = {
+                            if (!isDestinationPicker) viewModel.toggleSelectAllVisible()
                         },
                         onCategoryFolderClick = viewModel::toggleCategoryFolder,
                     )

@@ -1,6 +1,7 @@
 package com.filesflow.features.home
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -118,6 +119,38 @@ class HomeDashboardContentTest {
         assertEquals(setOf("file-1"), selected)
 
         assertTrue(toggledSelectedFileIds(selected, file).isEmpty())
+    }
+
+    @Test
+    fun selectAllVisibleFileIdsCoversEveryVisibleFile() {
+        val files = listOf(
+            testFile(id = "1", name = "a.jpg"),
+            testFile(id = "2", name = "b.jpg"),
+            testFile(id = "3", name = "c.jpg"),
+        )
+
+        assertEquals(setOf("1", "2", "3"), selectAllVisibleFileIds(files))
+        assertTrue(selectAllVisibleFileIds(emptyList()).isEmpty())
+    }
+
+    @Test
+    fun isAllVisibleSelectedHandlesPartialFullAndEmptyCases() {
+        val files = listOf(
+            testFile(id = "1", name = "a.jpg"),
+            testFile(id = "2", name = "b.jpg"),
+            testFile(id = "3", name = "c.jpg"),
+        )
+
+        // Empty selection: not "all selected".
+        assertFalse(isAllVisibleSelected(files, emptySet()))
+        // Partial selection: not "all selected".
+        assertFalse(isAllVisibleSelected(files, setOf("1", "2")))
+        // Full selection: "all selected".
+        assertTrue(isAllVisibleSelected(files, setOf("1", "2", "3")))
+        // Stale id in selection that no longer exists in visible list: still all visible selected.
+        assertTrue(isAllVisibleSelected(files, setOf("1", "2", "3", "ghost")))
+        // Empty visible list: never "all selected".
+        assertFalse(isAllVisibleSelected(emptyList(), emptySet()))
     }
 
     @Test
