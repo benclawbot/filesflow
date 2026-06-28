@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -15,7 +17,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,12 +52,14 @@ fun FileBrowserSection(
     isSelectionMode: Boolean = false,
     selectedFileIds: Set<String> = emptySet(),
     destinationPickerActive: Boolean = false,
+    needsStorageAccess: Boolean = false,
     onBackHome: () -> Unit,
     onFileClick: (FilesFlowFile) -> Unit,
     onFileLongClick: (FilesFlowFile) -> Unit,
     onMoreClick: (FilesFlowFile) -> Unit,
     onSelectAllToggle: () -> Unit = {},
     onCategoryFolderClick: (CategoryFolderFilter) -> Unit = {},
+    onRequestAccess: () -> Unit = {},
 ) {
     val showSelectAll = !isLoading && files.isNotEmpty() && !destinationPickerActive
     val allVisibleSelected = isAllVisibleSelected(files, selectedFileIds)
@@ -107,7 +114,10 @@ fun FileBrowserSection(
         }
 
         if (!isLoading && files.isEmpty()) {
-            EmptyFilesCard()
+            EmptyFilesCard(
+                needsStorageAccess = needsStorageAccess,
+                onRequestAccess = onRequestAccess,
+            )
         } else if (browseMode is BrowseMode.Category && browseMode.type == FileCategoryType.Images) {
             ImageGalleryGrid(
                 files = files,
@@ -165,22 +175,52 @@ private fun CategoryFolderRibbon(
 }
 
 @Composable
-private fun EmptyFilesCard() {
+private fun EmptyFilesCard(
+    needsStorageAccess: Boolean,
+    onRequestAccess: () -> Unit,
+) {
     NeumorphicSurface(
         modifier = Modifier.fillMaxWidth(),
         cornerRadius = 12.dp,
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text = "No files found",
+                text = if (needsStorageAccess) "Storage access required" else "No files found",
                 color = FilesFlowOnSurface,
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
             )
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Grant storage access or try another category/search.",
+                text = if (needsStorageAccess) {
+                    "FilesFlow needs permission to read your files before it can show anything. Tap below to open system settings, then enable Allow access to manage all files."
+                } else {
+                    "Grant storage access or try another category/search."
+                },
                 color = FilesFlowSecondary,
                 style = MaterialTheme.typography.labelSmall,
             )
+            if (needsStorageAccess) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = onRequestAccess,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = FilesFlowPrimary,
+                        contentColor = androidx.compose.ui.graphics.Color.White,
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.FolderOpen,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Grant storage access",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                    )
+                }
+            }
         }
     }
 }

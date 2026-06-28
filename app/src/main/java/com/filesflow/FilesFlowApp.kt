@@ -182,6 +182,15 @@ fun FilesFlowApp() {
 
     LaunchedEffect(Unit) {
         refreshDashboard()
+        // Auto-prompt for all-files access on first launch.
+        // The user needs MANAGE_EXTERNAL_STORAGE to see any files at all;
+        // without it the dashboard shows an empty list with no obvious next step.
+        val initialAccess = readAccessState()
+        if (!initialAccess.hasAllFilesAccess && !initialAccess.hasLegacyReadPermission) {
+            // Small delay so the dashboard renders first, then the system dialog stacks on top.
+            kotlinx.coroutines.delay(400)
+            requestSystemAccess(SystemAccessRequest.AllFilesAccess)
+        }
     }
 
     DisposableEffect(lifecycleOwner, context) {
@@ -196,8 +205,13 @@ fun FilesFlowApp() {
     }
 
     FilesFlowTheme {
+        val needsStorageAccess = !currentAccessState.hasAllFilesAccess && !currentAccessState.hasLegacyReadPermission
         HomeDashboardScreen(
             viewModel = viewModel,
+            needsStorageAccess = needsStorageAccess,
+            onRequestStorageAccess = {
+                requestSystemAccess(SystemAccessRequest.AllFilesAccess)
+            },
             onOpenCategory = { type ->
                 openWithAccess(PendingFilesFlowAction.OpenCategory(type))
             },

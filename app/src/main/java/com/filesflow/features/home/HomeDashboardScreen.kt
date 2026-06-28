@@ -69,6 +69,8 @@ fun HomeDashboardScreen(
     onSearchFiles: (String) -> Unit,
     onOpenFile: (FilesFlowFile) -> Unit,
     onShareFiles: (List<FilesFlowFile>) -> Unit,
+    needsStorageAccess: Boolean = false,
+    onRequestStorageAccess: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val isBrowserMode = uiState.browseMode != BrowseMode.Home
@@ -153,6 +155,7 @@ fun HomeDashboardScreen(
                         isSelectionMode = uiState.isSelectionMode,
                         selectedFileIds = uiState.selectedFileIds,
                         destinationPickerActive = isDestinationPicker,
+                        needsStorageAccess = needsStorageAccess,
                         onBackHome = {
                             if (isDestinationPicker) viewModel.cancelDestinationSelection() else viewModel.openHome()
                         },
@@ -167,6 +170,7 @@ fun HomeDashboardScreen(
                             if (!isDestinationPicker) viewModel.toggleSelectAllVisible()
                         },
                         onCategoryFolderClick = viewModel::toggleCategoryFolder,
+                        onRequestAccess = onRequestStorageAccess,
                     )
                 } else {
                     StorageOverviewCard(
