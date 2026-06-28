@@ -53,6 +53,7 @@ class FilesFlowViewModel(
                 searchQuery = "",
                 selectedFile = null,
                 selectedFileIds = emptySet(),
+                destinationSelection = null,
             )
         }
     }
@@ -65,6 +66,7 @@ class FilesFlowViewModel(
                 selectedFile = null,
                 selectedFileIds = emptySet(),
                 selectedCategoryFolderId = null,
+                destinationSelection = null,
             )
         }
         viewModelScope.launch {
@@ -83,6 +85,7 @@ class FilesFlowViewModel(
                 allCategoryFiles = emptyList(),
                 categoryFolderFilters = emptyList(),
                 selectedCategoryFolderId = null,
+                destinationSelection = null,
             )
         }
         viewModelScope.launch {
@@ -164,6 +167,7 @@ class FilesFlowViewModel(
                 allCategoryFiles = emptyList(),
                 categoryFolderFilters = emptyList(),
                 selectedCategoryFolderId = null,
+                destinationSelection = null,
             )
         }
         viewModelScope.launch {
@@ -232,6 +236,105 @@ class FilesFlowViewModel(
                 destinationFolderName = repository.getPersistedSafFolderName(),
                 accessState = it.accessState.copy(hasSafFolder = true),
                 operationStatus = FileOperationStatus("Folder selected", "FilesFlow can now copy or move files into the selected folder."),
+            )
+        }
+    }
+
+    fun startDestinationSelection(operation: FileOperation, file: FilesFlowFile) {
+        startDestinationSelection(operation, listOf(file))
+    }
+
+    fun startDestinationSelection(operation: FileOperation, files: List<FilesFlowFile>) {
+        val movableFiles = files.filterNot { it.isDirectory }
+        if (movableFiles.isEmpty()) return
+
+        val state = _uiState.value
+        val selection = DestinationSelection(
+            operation = operation,
+            files = movableFiles,
+            returnBrowseMode = state.browseMode,
+            returnSelectedCategoryFolderId = state.selectedCategoryFolderId,
+        )
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                browseMode = BrowseMode.Folder(null, "Browse Files"),
+                selectedFile = null,
+                selectedFileIds = emptySet(),
+                destinationSelection = selection,
+                allCategoryFiles = emptyList(),
+                categoryFolderFilters = emptyList(),
+                selectedCategoryFolderId = null,
+            )
+        }
+        viewModelScope.launch {
+            val browserFiles = loadBrowserFiles(BrowseMode.Folder(null, "Browse Files"), selectedCategoryFolderId = null)
+            _uiState.update { it.withBrowserFiles(browserFiles).copy(isLoading = false) }
+        }
+    }
+
+    fun cancelDestinationSelection() {
+        val selection = _uiState.value.destinationSelection ?: return
+        _uiState.update { it.copy(isLoading = true, destinationSelection = null, selectedFile = null, selectedFileIds = emptySet()) }
+        viewModelScope.launch {
+            restoreBrowseMode(
+                mode = selection.returnBrowseMode,
+                selectedCategoryFolderId = selection.returnSelectedCategoryFolderId,
+            )
+        }
+    }
+
+    fun confirmDestinationSelection() {
+        val selection = _uiState.value.destinationSelection ?: return
+        val destinationMode = _uiState.value.browseMode
+        _uiState.update { it.copy(isLoading = true, selectedFile = null, selectedFileIds = emptySet()) }
+        viewModelScope.launch {
+            val destinationFolder = destinationFolderForBrowseMode(destinationMode, repository.getBrowseRootFolder())
+            val status = if (destinationFolder == null) {
+                FileOperationStatus("Choose a folder", "Open a folder in Browse Files before validating the destination.")
+            } else {
+                runDestinationOperation(selection, destinationFolder)
+            }
+            restoreBrowseMode(
+                mode = selection.returnBrowseMode,
+                selectedCategoryFolderId = selection.returnSelectedCategoryFolderId,
+                status = status,
+            )
+            refresh()
+        }
+    }
+
+    private suspend fun runDestinationOperation(
+        selection: DestinationSelection,
+        destinationFolder: FilesFlowFile,
+    ): FileOperationStatus {
+        val statuses = selection.files.map { file ->
+            when (selection.operation) {
+                FileOperation.Copy -> repository.copyToFolder(file, destinationFolder)
+                FileOperation.Move -> repository.moveToFolder(file, destinationFolder)
+                FileOperation.Delete -> repository.delete(file)
+            }
+        }
+        val successTitle = when (selection.operation) {
+            FileOperation.Copy -> "Copied"
+            FileOperation.Move -> "Moved"
+            FileOperation.Delete -> "Deleted"
+        }
+        val successCount = statuses.count { it.title == successTitle }
+        val fileLabel = "file".pluralized(selection.files.size)
+        return when {
+            selection.files.size == 1 -> statuses.single()
+            successCount == selection.files.size -> FileOperationStatus(
+                title = successTitle,
+                detail = "$successCount selected $fileLabel ${selection.operation.pastTense()} to ${destinationFolder.name}.",
+            )
+            successCount > 0 -> FileOperationStatus(
+                title = "Some files ${selection.operation.pastTense()}",
+                detail = "$successCount of ${selection.files.size} selected $fileLabel were ${selection.operation.pastTense()} to ${destinationFolder.name}.",
+            )
+            else -> FileOperationStatus(
+                title = "${selection.operation.label()} failed",
+                detail = "FilesFlow could not ${selection.operation.verb()} the selected $fileLabel to ${destinationFolder.name}.",
             )
         }
     }
@@ -327,6 +430,44 @@ class FilesFlowViewModel(
         )
     }
 
+    private suspend fun restoreBrowseMode(
+        mode: BrowseMode,
+        selectedCategoryFolderId: String?,
+        status: FileOperationStatus? = null,
+    ) {
+        if (mode == BrowseMode.Home) {
+            _uiState.update {
+                it.copy(
+                    browseMode = BrowseMode.Home,
+                    visibleFiles = emptyList(),
+                    allCategoryFiles = emptyList(),
+                    categoryFolderFilters = emptyList(),
+                    selectedCategoryFolderId = null,
+                    searchQuery = "",
+                    selectedFile = null,
+                    selectedFileIds = emptySet(),
+                    destinationSelection = null,
+                    operationStatus = status ?: it.operationStatus,
+                    isLoading = false,
+                )
+            }
+            return
+        }
+
+        val browserFiles = loadBrowserFiles(mode, selectedCategoryFolderId)
+        _uiState.update {
+            it.withBrowserFiles(browserFiles).copy(
+                browseMode = mode,
+                searchQuery = if (mode is BrowseMode.Search) mode.query else it.searchQuery,
+                selectedFile = null,
+                selectedFileIds = emptySet(),
+                destinationSelection = null,
+                operationStatus = status ?: it.operationStatus,
+                isLoading = false,
+            )
+        }
+    }
+
     private fun FilesFlowUiState.withBrowserFiles(browserFiles: BrowserFiles): FilesFlowUiState {
         return copy(
             visibleFiles = browserFiles.visibleFiles,
@@ -342,6 +483,30 @@ class FilesFlowViewModel(
 
     private fun String.pluralized(count: Int): String {
         return if (count == 1) this else "${this}s"
+    }
+
+    private fun FileOperation.label(): String {
+        return when (this) {
+            FileOperation.Copy -> "Copy"
+            FileOperation.Move -> "Move"
+            FileOperation.Delete -> "Delete"
+        }
+    }
+
+    private fun FileOperation.verb(): String {
+        return when (this) {
+            FileOperation.Copy -> "copy"
+            FileOperation.Move -> "move"
+            FileOperation.Delete -> "delete"
+        }
+    }
+
+    private fun FileOperation.pastTense(): String {
+        return when (this) {
+            FileOperation.Copy -> "copied"
+            FileOperation.Move -> "moved"
+            FileOperation.Delete -> "deleted"
+        }
     }
 
     private data class BrowserFiles(

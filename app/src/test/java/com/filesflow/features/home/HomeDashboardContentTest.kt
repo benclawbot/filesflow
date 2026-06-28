@@ -147,11 +147,52 @@ class HomeDashboardContentTest {
         assertEquals(null, toggledCategoryFolderSelection(selectedFolder, "Pictures/Camera"))
     }
 
+    @Test
+    fun destinationPickerUsesCurrentInternalBrowseFolder() {
+        val browseRoot = testFile(
+            id = "root",
+            name = "Internal Storage",
+            path = "/storage/emulated/0",
+            source = FileSource.DirectFile,
+            isDirectory = true,
+        )
+
+        assertEquals(
+            browseRoot,
+            destinationFolderForBrowseMode(BrowseMode.Folder(null, "Browse Files"), browseRoot),
+        )
+
+        assertEquals(
+            FilesFlowFile(
+                id = "folder-/storage/emulated/0/Download",
+                name = "Download",
+                metadata = "Folder",
+                uri = null,
+                path = "/storage/emulated/0/Download",
+                mimeType = null,
+                sizeBytes = 0L,
+                modifiedAtMillis = 0L,
+                source = FileSource.DirectFile,
+                isDirectory = true,
+            ),
+            destinationFolderForBrowseMode(
+                BrowseMode.Folder(
+                    uri = null,
+                    displayName = "Download",
+                    path = "/storage/emulated/0/Download",
+                    source = FileSource.DirectFile,
+                ),
+                browseRoot,
+            ),
+        )
+    }
+
     private fun testFile(
         id: String,
         name: String,
         path: String? = null,
         source: FileSource = FileSource.DirectFile,
+        isDirectory: Boolean = false,
     ): FilesFlowFile {
         return FilesFlowFile(
             id = id,
@@ -163,6 +204,7 @@ class HomeDashboardContentTest {
             sizeBytes = 1024L,
             modifiedAtMillis = 0L,
             source = source,
+            isDirectory = isDirectory,
         )
     }
 }

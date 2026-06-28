@@ -41,6 +41,7 @@ fun FileBrowserSection(
     selectedCategoryFolderId: String? = null,
     isSelectionMode: Boolean = false,
     selectedFileIds: Set<String> = emptySet(),
+    destinationPickerActive: Boolean = false,
     onBackHome: () -> Unit,
     onFileClick: (FilesFlowFile) -> Unit,
     onFileLongClick: (FilesFlowFile) -> Unit,
@@ -68,7 +69,11 @@ fun FileBrowserSection(
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                 )
                 Text(
-                    text = if (isLoading) "Loading files" else "${files.size} items",
+                    text = when {
+                        destinationPickerActive -> "Open a folder, then use the button below to choose it"
+                        isLoading -> "Loading files"
+                        else -> "${files.size} items"
+                    },
                     color = FilesFlowSecondary,
                     style = MaterialTheme.typography.labelSmall,
                 )

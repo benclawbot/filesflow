@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.StatFs
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import androidx.documentfile.provider.DocumentFile
 import com.filesflow.features.home.FileCategorySummary
@@ -117,6 +118,47 @@ class AndroidFileManagerRepository(
             FileSource.Saf -> folder.uri?.let { listFolderInternal(it) }.orEmpty()
             FileSource.MediaStore,
             FileSource.AppPackage -> emptyList()
+        }
+    }
+
+    override suspend fun getBrowseRootFolder(): FilesFlowFile? = withContext(Dispatchers.IO) {
+        getPersistedSafDocument()?.toSafFileItem()
+            ?: run {
+                @Suppress("DEPRECATION")
+                Environment.getExternalStorageDirectory()
+                    .takeIf { it.isDirectory && it.canRead() }
+                    ?.toDirectFileItem()
+            }
+    }
+
+    override suspend fun copyToFolder(
+        file: FilesFlowFile,
+        destinationFolder: FilesFlowFile,
+    ): FileOperationStatus = withContext(Dispatchers.IO) {
+        if (file.isDirectory) {
+            return@withContext FileOperationStatus("Copy unavailable", "Folders cannot be copied yet.")
+        }
+        val copied = copyIntoFolder(file, destinationFolder)
+        if (copied) {
+            FileOperationStatus("Copied", "${file.name} was copied to ${destinationFolder.name}.")
+        } else {
+            FileOperationStatus("Copy failed", "FilesFlow could not copy ${file.name} to ${destinationFolder.name}.")
+        }
+    }
+
+    override suspend fun moveToFolder(
+        file: FilesFlowFile,
+        destinationFolder: FilesFlowFile,
+    ): FileOperationStatus = withContext(Dispatchers.IO) {
+        if (file.isDirectory) {
+            return@withContext FileOperationStatus("Move unavailable", "Folders cannot be moved yet.")
+        }
+        val copied = copyIntoFolder(file, destinationFolder)
+        val deleted = if (copied) deleteInternal(file) else false
+        when {
+            copied && deleted -> FileOperationStatus("Moved", "${file.name} was moved to ${destinationFolder.name}.")
+            copied -> FileOperationStatus("Copied only", "${file.name} was copied, but Android did not allow deleting the original.")
+            else -> FileOperationStatus("Move failed", "FilesFlow could not move ${file.name} to ${destinationFolder.name}.")
         }
     }
 
@@ -358,6 +400,80 @@ class AndroidFileManagerRepository(
             }
             true
         }.getOrDefault(false)
+    }
+
+    private fun copyIntoFolder(file: FilesFlowFile, destinationFolder: FilesFlowFile): Boolean {
+        return when (destinationFolder.source) {
+            FileSource.DirectFile -> destinationFolder.path
+                ?.let(::File)
+                ?.takeIf { it.isDirectory && it.canWrite() }
+                ?.let { copyIntoDirectFolder(file, it) }
+                ?: false
+            FileSource.Saf -> destinationFolder.uri
+                ?.let { copyIntoSafFolderUri(file, it) }
+                ?: false
+            FileSource.MediaStore,
+            FileSource.AppPackage -> false
+        }
+    }
+
+    private fun copyIntoSafFolderUri(file: FilesFlowFile, destinationUri: Uri): Boolean {
+        if (file.isDirectory) return false
+        val mimeType = file.mimeType ?: "application/octet-stream"
+        val targetUri = runCatching {
+            val parentUri = if (DocumentsContract.isTreeUri(destinationUri)) {
+                val documentId = runCatching {
+                    DocumentsContract.getDocumentId(destinationUri)
+                }.getOrElse {
+                    DocumentsContract.getTreeDocumentId(destinationUri)
+                }
+                DocumentsContract.buildDocumentUriUsingTree(
+                    destinationUri,
+                    documentId,
+                )
+            } else {
+                destinationUri
+            }
+            DocumentsContract.createDocument(resolver, parentUri, mimeType, file.name)
+        }.getOrNull() ?: return false
+        val input = openInputStream(file) ?: return false
+        return runCatching {
+            input.use { source ->
+                resolver.openOutputStream(targetUri)?.use { output ->
+                    source.copyTo(output)
+                } ?: return false
+            }
+            true
+        }.getOrDefault(false)
+    }
+
+    private fun copyIntoDirectFolder(file: FilesFlowFile, destinationFolder: File): Boolean {
+        if (file.isDirectory) return false
+        val input = openInputStream(file) ?: return false
+        val target = uniqueDestinationFile(destinationFolder, file.name)
+        return runCatching {
+            input.use { source ->
+                target.outputStream().use { output ->
+                    source.copyTo(output)
+                }
+            }
+            true
+        }.getOrDefault(false)
+    }
+
+    private fun uniqueDestinationFile(destinationFolder: File, fileName: String): File {
+        val baseName = fileName.substringBeforeLast('.', missingDelimiterValue = fileName)
+        val extension = fileName.substringAfterLast('.', missingDelimiterValue = "")
+            .takeIf { it.isNotBlank() }
+            ?.let { ".$it" }
+            .orEmpty()
+        var candidate = File(destinationFolder, fileName)
+        var suffix = 1
+        while (candidate.exists()) {
+            candidate = File(destinationFolder, "$baseName ($suffix)$extension")
+            suffix += 1
+        }
+        return candidate
     }
 
     private fun openInputStream(file: FilesFlowFile) = when {

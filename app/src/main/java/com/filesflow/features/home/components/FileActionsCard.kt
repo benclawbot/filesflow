@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.DriveFileMove
-import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FolderSpecial
 import androidx.compose.material.icons.rounded.Close
@@ -40,9 +38,6 @@ import com.filesflow.ui.theme.FilesFlowSecondary
 fun FileActionsCard(
     modifier: Modifier = Modifier,
     file: FilesFlowFile,
-    hasDestinationFolder: Boolean,
-    onCopy: () -> Unit,
-    onMove: () -> Unit,
     onRename: (String) -> Unit,
     onDelete: () -> Unit,
     onChooseFolder: (FileOperation) -> Unit,
@@ -88,33 +83,18 @@ fun FileActionsCard(
                 }
             }
 
-            if (!hasDestinationFolder) {
-                ActionButton(
-                    icon = { Icon(Icons.Rounded.FolderSpecial, contentDescription = null) },
-                    text = "Choose Folder to Copy",
-                    onClick = { onChooseFolder(FileOperation.Copy) },
-                    enabled = !file.isDirectory,
-                )
-                ActionButton(
-                    icon = { Icon(Icons.Rounded.FolderSpecial, contentDescription = null) },
-                    text = "Choose Folder to Move",
-                    onClick = { onChooseFolder(FileOperation.Move) },
-                    enabled = !file.isDirectory,
-                )
-            } else {
-                ActionButton(
-                    icon = { Icon(Icons.Rounded.ContentCopy, contentDescription = null) },
-                    text = "Copy to Selected Folder",
-                    onClick = onCopy,
-                    enabled = !file.isDirectory,
-                )
-                ActionButton(
-                    icon = { Icon(Icons.AutoMirrored.Rounded.DriveFileMove, contentDescription = null) },
-                    text = "Move to Selected Folder",
-                    onClick = onMove,
-                    enabled = !file.isDirectory,
-                )
-            }
+            ActionButton(
+                icon = { Icon(Icons.Rounded.FolderSpecial, contentDescription = null) },
+                text = "Copy to Folder",
+                onClick = { onChooseFolder(FileOperation.Copy) },
+                enabled = !file.isDirectory,
+            )
+            ActionButton(
+                icon = { Icon(Icons.Rounded.FolderSpecial, contentDescription = null) },
+                text = "Move to Folder",
+                onClick = { onChooseFolder(FileOperation.Move) },
+                enabled = !file.isDirectory,
+            )
             if (isRenaming) {
                 OutlinedTextField(
                     modifier = Modifier.fillMaxWidth(),

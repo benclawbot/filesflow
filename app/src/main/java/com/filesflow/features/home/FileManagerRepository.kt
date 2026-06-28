@@ -10,6 +10,9 @@ interface FileManagerRepository {
     suspend fun searchFiles(query: String): List<FilesFlowFile>
     suspend fun listBrowseRoot(): List<FilesFlowFile>
     suspend fun listFolder(folder: FilesFlowFile): List<FilesFlowFile>
+    suspend fun getBrowseRootFolder(): FilesFlowFile?
+    suspend fun copyToFolder(file: FilesFlowFile, destinationFolder: FilesFlowFile): FileOperationStatus
+    suspend fun moveToFolder(file: FilesFlowFile, destinationFolder: FilesFlowFile): FileOperationStatus
     suspend fun copyToSafFolder(file: FilesFlowFile): FileOperationStatus
     suspend fun moveToSafFolder(file: FilesFlowFile): FileOperationStatus
     suspend fun rename(file: FilesFlowFile, newName: String): FileOperationStatus

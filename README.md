@@ -14,7 +14,7 @@ The screenshot below was captured from the debug APK running on a connected Andr
 
 ## Functionality
 
-FilesFlow currently includes a status-bar-safe portrait app bar, a real internal-storage usage overview, live file-category summaries for Images, Videos, Docs, Downloads, Music, and Apps, a recent-files feed backed by MediaStore or granted shared storage, search-by-name after Enter, category browsing with swipeable folder filters, SAF folder browsing, Android file opening on tap, long-press multi-select with batch delete/share actions, and per-file copy, move, rename, and delete actions from the more menu. Tapping the Internal Storage overview opens the phone folder root. Categories, search results, and browsing open as dedicated views with back navigation to the home dashboard, and the Images category uses a fast cached 3 x 6 thumbnail gallery with selection controls in grid view. When a destination needs more Android storage access, FilesFlow launches the system access request and then continues the requested copy or move after access returns.
+FilesFlow currently includes a status-bar-safe portrait app bar, a real internal-storage usage overview, live file-category summaries for Images, Videos, Docs, Downloads, Music, and Apps, a recent-files feed backed by MediaStore or granted shared storage, search-by-name after Enter, category browsing with swipeable folder filters, SAF folder browsing, Android file opening on tap, long-press multi-select with batch move/delete/share actions, and per-file copy, move, rename, and delete actions from the more menu. Tapping the Internal Storage overview opens the phone folder root. Categories, search results, and browsing open as dedicated views with back navigation to the home dashboard, and the Images category uses a fast cached 3 x 6 thumbnail gallery with selection controls in grid view. Copy and move use FilesFlow's own Browse Files view to choose a destination, with a bottom-right validation button for the current folder.
 
 The interface keeps the original FilesFlow design language: warm `#fff8f2` surfaces, serif headline typography, compact portrait spacing, rounded 8-12dp controls, and raised or recessed neumorphic panels.
 
@@ -46,7 +46,7 @@ flowchart TD
     P --> V["FileActionsCard"]
 ```
 
-`FilesFlowApp` owns Android permission and picker launchers plus pending destination resume, `FilesFlowViewModel` owns dashboard and browser state, `AndroidFileManagerRepository` performs storage, MediaStore, SAF, direct-file, and app-package operations, and the `features/home/components` package renders the portrait-only Compose UI.
+`FilesFlowApp` owns Android permission launchers, `FilesFlowViewModel` owns dashboard, browser, selection, and in-app destination-picking state, `AndroidFileManagerRepository` performs storage, MediaStore, SAF, direct-file, and app-package operations, and the `features/home/components` package renders the portrait-only Compose UI.
 
 ## Installation
 
@@ -57,7 +57,7 @@ flowchart TD
 adb install -r app\build\outputs\apk\debug\app-debug.apk
 ```
 
-FilesFlow asks for Android system access only when the user opens a category, search, or browser that needs it. Tap a file to open it with Android, or long-press a file to manage it. Use the file action sheet to choose a SAF destination folder for copy and move operations.
+FilesFlow asks for Android system access only when the user opens a category, search, or browser that needs it. Tap a file to open it with Android, or long-press a file to manage it. Use the file action sheet or the multi-select folder action to open Browse Files, navigate to a destination folder, and validate it with the bottom-right button.
 
 ### Run from Android Studio
 

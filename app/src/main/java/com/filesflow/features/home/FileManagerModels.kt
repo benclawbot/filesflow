@@ -39,6 +39,16 @@ data class CategoryFolderFilter(
     val name: String,
 )
 
+data class DestinationSelection(
+    val operation: FileOperation,
+    val files: List<FilesFlowFile>,
+    val returnBrowseMode: BrowseMode,
+    val returnSelectedCategoryFolderId: String? = null,
+) {
+    val primaryFile: FilesFlowFile?
+        get() = files.firstOrNull()
+}
+
 sealed interface BrowseMode {
     data object Home : BrowseMode
     data class Category(val type: FileCategoryType) : BrowseMode
@@ -99,6 +109,7 @@ data class FilesFlowUiState(
     val searchQuery: String = "",
     val selectedFile: FilesFlowFile? = null,
     val selectedFileIds: Set<String> = emptySet(),
+    val destinationSelection: DestinationSelection? = null,
     val destinationFolderName: String? = null,
     val operationStatus: FileOperationStatus? = null,
     val accessState: StorageAccessState = StorageAccessState(),
@@ -130,6 +141,30 @@ fun categoryFolderFilters(files: List<FilesFlowFile>): List<CategoryFolderFilter
 fun filesForCategoryFolder(files: List<FilesFlowFile>, selectedFolderId: String?): List<FilesFlowFile> {
     if (selectedFolderId == null) return files
     return files.filter { it.categoryFolderId() == selectedFolderId }
+}
+
+fun destinationFolderForBrowseMode(mode: BrowseMode, browseRootFolder: FilesFlowFile?): FilesFlowFile? {
+    return when (mode) {
+        is BrowseMode.Folder -> if (mode.uri == null && mode.path == null) {
+            browseRootFolder
+        } else {
+            FilesFlowFile(
+                id = "folder-${mode.uri ?: mode.path}",
+                name = mode.displayName,
+                metadata = "Folder",
+                uri = mode.uri,
+                path = mode.path,
+                mimeType = null,
+                sizeBytes = 0L,
+                modifiedAtMillis = 0L,
+                source = mode.source,
+                isDirectory = true,
+            )
+        }
+        BrowseMode.Home,
+        is BrowseMode.Category,
+        is BrowseMode.Search -> null
+    }
 }
 
 private fun FilesFlowFile.categoryFolderId(): String? {

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FolderOpen
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -66,15 +68,17 @@ fun HomeDashboardScreen(
     onSearchFiles: (String) -> Unit,
     onOpenFile: (FilesFlowFile) -> Unit,
     onShareFiles: (List<FilesFlowFile>) -> Unit,
-    onRequestDestinationFolder: (FileOperation, FilesFlowFile) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val isBrowserMode = uiState.browseMode != BrowseMode.Home
+    val isDestinationPicker = uiState.destinationSelection != null
     val selectableFiles = if (uiState.browseMode == BrowseMode.Home) uiState.recentFiles else uiState.visibleFiles
     val selectedFiles = selectableFiles.filter { it.id in uiState.selectedFileIds }
 
     fun handleFileClick(file: FilesFlowFile) {
-        if (uiState.isSelectionMode) {
+        if (isDestinationPicker) {
+            if (file.isDirectory) viewModel.openFolder(file)
+        } else if (uiState.isSelectionMode) {
             viewModel.toggleFileSelection(file)
         } else if (file.isDirectory) {
             viewModel.openFolder(file)
@@ -83,8 +87,10 @@ fun HomeDashboardScreen(
         }
     }
 
-    BackHandler(enabled = uiState.isSelectionMode || uiState.selectedFile != null || isBrowserMode) {
-        if (uiState.isSelectionMode) {
+    BackHandler(enabled = isDestinationPicker || uiState.isSelectionMode || uiState.selectedFile != null || isBrowserMode) {
+        if (isDestinationPicker) {
+            viewModel.cancelDestinationSelection()
+        } else if (uiState.isSelectionMode) {
             viewModel.clearSelection()
         } else if (uiState.selectedFile != null) {
             viewModel.dismissActions()
@@ -124,6 +130,9 @@ fun HomeDashboardScreen(
                 if (selectedFiles.isNotEmpty()) {
                     BatchSelectionBar(
                         selectedCount = selectedFiles.size,
+                        onMove = {
+                            viewModel.startDestinationSelection(FileOperation.Move, selectedFiles)
+                        },
                         onDelete = viewModel::deleteSelectedFiles,
                         onShare = {
                             viewModel.clearSelection()
@@ -142,10 +151,17 @@ fun HomeDashboardScreen(
                         selectedCategoryFolderId = uiState.selectedCategoryFolderId,
                         isSelectionMode = uiState.isSelectionMode,
                         selectedFileIds = uiState.selectedFileIds,
-                        onBackHome = viewModel::openHome,
+                        destinationPickerActive = isDestinationPicker,
+                        onBackHome = {
+                            if (isDestinationPicker) viewModel.cancelDestinationSelection() else viewModel.openHome()
+                        },
                         onFileClick = ::handleFileClick,
-                        onFileLongClick = viewModel::startFileSelection,
-                        onMoreClick = viewModel::selectFile,
+                        onFileLongClick = { file ->
+                            if (!isDestinationPicker) viewModel.startFileSelection(file)
+                        },
+                        onMoreClick = { file ->
+                            if (!isDestinationPicker) viewModel.selectFile(file)
+                        },
                         onCategoryFolderClick = viewModel::toggleCategoryFolder,
                     )
                 } else {
@@ -183,6 +199,26 @@ fun HomeDashboardScreen(
                     )
                 }
             }
+
+            if (isDestinationPicker) {
+                ExtendedFloatingActionButton(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = FilesFlowHorizontalPaddingDp.dp, bottom = 32.dp),
+                    onClick = viewModel::confirmDestinationSelection,
+                    containerColor = FilesFlowPrimary,
+                    contentColor = FilesFlowBackground,
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = null,
+                        )
+                    },
+                    text = {
+                        Text("Use this folder")
+                    },
+                )
+            }
         }
     }
 
@@ -197,12 +233,9 @@ fun HomeDashboardScreen(
             FileActionsCard(
                 modifier = Modifier.widthIn(max = FilesFlowPortraitWidthDp.dp),
                 file = file,
-                hasDestinationFolder = uiState.destinationFolderName != null,
-                onCopy = { viewModel.runOperation(FileOperation.Copy, file) },
-                onMove = { viewModel.runOperation(FileOperation.Move, file) },
                 onRename = { newName -> viewModel.renameFile(file, newName) },
                 onDelete = { viewModel.runOperation(FileOperation.Delete, file) },
-                onChooseFolder = { operation -> onRequestDestinationFolder(operation, file) },
+                onChooseFolder = { operation -> viewModel.startDestinationSelection(operation, file) },
                 onDismiss = viewModel::dismissActions,
             )
         }
@@ -293,6 +326,7 @@ private fun SearchAndBrowseCard(
 @Composable
 private fun BatchSelectionBar(
     selectedCount: Int,
+    onMove: () -> Unit,
     onDelete: () -> Unit,
     onShare: () -> Unit,
     onClear: () -> Unit,
@@ -317,6 +351,13 @@ private fun BatchSelectionBar(
                 Icon(
                     imageVector = Icons.Rounded.Share,
                     contentDescription = "Share selected files",
+                    tint = FilesFlowPrimary,
+                )
+            }
+            IconButton(onClick = onMove) {
+                Icon(
+                    imageVector = Icons.Rounded.FolderOpen,
+                    contentDescription = "Move selected files",
                     tint = FilesFlowPrimary,
                 )
             }
