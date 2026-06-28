@@ -53,6 +53,7 @@ import com.filesflow.features.home.components.CategoryGrid
 import com.filesflow.features.home.components.FilesFlowTopBar
 import com.filesflow.features.home.components.ImageViewer
 import com.filesflow.features.home.components.NeumorphicSurface
+import com.filesflow.features.home.components.RecentFileRow
 import com.filesflow.features.home.components.RecentFilesList
 import com.filesflow.features.home.components.StorageOverviewCard
 import com.filesflow.ui.theme.FilesFlowAccentOrange
@@ -68,6 +69,7 @@ fun HomeDashboardScreen(
     onOpenBrowseRoot: () -> Unit,
     onSearchFiles: (String) -> Unit,
     onOpenFile: (FilesFlowFile) -> Unit,
+    onPrintFile: (FilesFlowFile) -> Unit,
     onShareFiles: (List<FilesFlowFile>) -> Unit,
     needsStorageAccess: Boolean = false,
     onRequestStorageAccess: () -> Unit = {},
@@ -128,7 +130,7 @@ fun HomeDashboardScreen(
                             bottom = 128.dp,
                         ),
                     ),
-                    verticalArrangement = Arrangement.spacedBy(32.dp),
+                verticalArrangement = Arrangement.spacedBy(32.dp),
             ) {
                 if (selectedFiles.isNotEmpty()) {
                     BatchSelectionBar(
@@ -146,6 +148,12 @@ fun HomeDashboardScreen(
                 }
 
                 if (isBrowserMode) {
+                    if (isDestinationPicker && uiState.favoriteFolders.isNotEmpty()) {
+                        FavoriteDestinationSuggestions(
+                            folders = uiState.favoriteFolders,
+                            onFolderClick = viewModel::confirmFavoriteDestination,
+                        )
+                    }
                     FileBrowserSection(
                         browseMode = uiState.browseMode,
                         files = uiState.visibleFiles,
@@ -154,6 +162,7 @@ fun HomeDashboardScreen(
                         selectedCategoryFolderId = uiState.selectedCategoryFolderId,
                         isSelectionMode = uiState.isSelectionMode,
                         selectedFileIds = uiState.selectedFileIds,
+                        favoriteFolderIds = uiState.favoriteFolderIds,
                         destinationPickerActive = isDestinationPicker,
                         needsStorageAccess = needsStorageAccess,
                         onBackHome = {
@@ -166,6 +175,7 @@ fun HomeDashboardScreen(
                         onMoreClick = { file ->
                             if (!isDestinationPicker) viewModel.selectFile(file)
                         },
+                        onToggleFavoriteFolder = viewModel::toggleFavoriteFolder,
                         onSelectAllToggle = {
                             if (!isDestinationPicker) viewModel.toggleSelectAllVisible()
                         },
@@ -184,6 +194,13 @@ fun HomeDashboardScreen(
                         onSearch = onSearchFiles,
                         onBrowse = onOpenBrowseRoot,
                         onClear = viewModel::openHome,
+                    )
+                    FavoriteFoldersList(
+                        folders = uiState.favoriteFolders,
+                        onFolderClick = viewModel::openFavoriteFolder,
+                        onToggleFavoriteFolder = { folder ->
+                            viewModel.toggleFavoriteFolder(folder.toFilesFlowFile())
+                        },
                     )
                     CategoryGrid(
                         summaries = uiState.categories,
@@ -241,11 +258,92 @@ fun HomeDashboardScreen(
             FileActionsCard(
                 modifier = Modifier.widthIn(max = FilesFlowPortraitWidthDp.dp),
                 file = file,
+                isFavoriteFolder = file.isDirectory && favoriteFolderIdFor(file) in uiState.favoriteFolderIds,
                 onRename = { newName -> viewModel.renameFile(file, newName) },
                 onDelete = { viewModel.runOperation(FileOperation.Delete, file) },
+                onPrint = { onPrintFile(file) },
                 onChooseFolder = { operation -> viewModel.startDestinationSelection(operation, file) },
+                onToggleFavoriteFolder = { viewModel.toggleFavoriteFolder(file) },
                 onDismiss = viewModel::dismissActions,
             )
+        }
+    }
+}
+
+@Composable
+private fun FavoriteFoldersList(
+    folders: List<FavoriteFolder>,
+    onFolderClick: (FavoriteFolder) -> Unit,
+    onToggleFavoriteFolder: (FavoriteFolder) -> Unit,
+) {
+    if (folders.isEmpty()) return
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 4.dp, end = 4.dp, bottom = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Favorite Folders",
+                color = FilesFlowSecondary,
+                style = MaterialTheme.typography.labelMedium,
+            )
+            Text(
+                text = "${folders.size} saved",
+                color = FilesFlowPrimary,
+                style = MaterialTheme.typography.labelSmall,
+            )
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            folders.take(5).forEach { folder ->
+                val favoriteFile = folder.toFilesFlowFile()
+                RecentFileRow(
+                    file = favoriteFile,
+                    isFavoriteFolder = true,
+                    onClick = { onFolderClick(folder) },
+                    onLongClick = { onToggleFavoriteFolder(folder) },
+                    onMoreClick = { onToggleFavoriteFolder(folder) },
+                    onFavoriteClick = { onToggleFavoriteFolder(folder) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FavoriteDestinationSuggestions(
+    folders: List<FavoriteFolder>,
+    onFolderClick: (FavoriteFolder) -> Unit,
+) {
+    NeumorphicSurface(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = 12.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            TextHeader(
+                title = "Favorite destinations",
+                subtitle = "Tap one to use it immediately for this copy/move operation.",
+                titleColor = FilesFlowAccentOrange,
+            )
+            folders.take(4).forEach { folder ->
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { onFolderClick(folder) },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = FilesFlowPrimary,
+                        contentColor = FilesFlowBackground,
+                    ),
+                ) {
+                    Text(folder.name)
+                }
+            }
         }
     }
 }
