@@ -19,6 +19,38 @@ fun fileOpenIntent(context: Context, file: FilesFlowFile): Intent? {
     }
 }
 
+fun fileShareIntent(context: Context, files: List<FilesFlowFile>): Intent? {
+    val shareableFiles = files
+        .filterNot { it.isDirectory }
+        .mapNotNull { file ->
+            val uri = openableUri(context, file) ?: return@mapNotNull null
+            ShareableFile(
+                uri = uri,
+                mimeType = file.mimeType ?: mimeTypeFromName(file.name) ?: "application/octet-stream",
+            )
+        }
+
+    if (shareableFiles.isEmpty()) return null
+
+    val shareIntent = (if (shareableFiles.size == 1) {
+        Intent(Intent.ACTION_SEND).apply {
+            type = shareableFiles.single().mimeType
+            putExtra(Intent.EXTRA_STREAM, shareableFiles.single().uri)
+        }
+    } else {
+        Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            type = commonMimeType(shareableFiles)
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(shareableFiles.map { it.uri }))
+        }
+    }).apply {
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+
+    return Intent.createChooser(shareIntent, "Share files").apply {
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+}
+
 private fun openableUri(context: Context, file: FilesFlowFile): Uri? {
     file.uri?.let { return it }
     val path = file.path ?: return null
@@ -30,9 +62,19 @@ private fun openableUri(context: Context, file: FilesFlowFile): Uri? {
     )
 }
 
+private fun commonMimeType(files: List<ShareableFile>): String {
+    val mimeTypes = files.map { it.mimeType }.distinct()
+    return if (mimeTypes.size == 1) mimeTypes.single() else "*/*"
+}
+
 private fun mimeTypeFromName(name: String): String? {
     val extension = name.substringAfterLast('.', missingDelimiterValue = "")
         .lowercase(Locale.US)
         .takeIf { it.isNotBlank() }
     return extension?.let { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }
 }
+
+private data class ShareableFile(
+    val uri: Uri,
+    val mimeType: String,
+)

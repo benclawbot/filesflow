@@ -1,10 +1,15 @@
 package com.filesflow.features.home.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.Icon
@@ -14,12 +19,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.filesflow.features.home.BrowseMode
+import com.filesflow.features.home.CategoryFolderFilter
 import com.filesflow.features.home.FileCategoryType
 import com.filesflow.features.home.FilesFlowFile
+import com.filesflow.ui.theme.FilesFlowBackground
 import com.filesflow.ui.theme.FilesFlowOnSurface
+import com.filesflow.ui.theme.FilesFlowPrimary
+import com.filesflow.ui.theme.FilesFlowPrimaryContainer
 import com.filesflow.ui.theme.FilesFlowSecondary
 
 @Composable
@@ -27,10 +37,15 @@ fun FileBrowserSection(
     browseMode: BrowseMode,
     files: List<FilesFlowFile>,
     isLoading: Boolean,
+    categoryFolderFilters: List<CategoryFolderFilter> = emptyList(),
+    selectedCategoryFolderId: String? = null,
+    isSelectionMode: Boolean = false,
+    selectedFileIds: Set<String> = emptySet(),
     onBackHome: () -> Unit,
     onFileClick: (FilesFlowFile) -> Unit,
     onFileLongClick: (FilesFlowFile) -> Unit,
     onMoreClick: (FilesFlowFile) -> Unit,
+    onCategoryFolderClick: (CategoryFolderFilter) -> Unit = {},
 ) {
     Column {
         Row(
@@ -60,11 +75,21 @@ fun FileBrowserSection(
             }
         }
 
+        if (browseMode is BrowseMode.Category && categoryFolderFilters.isNotEmpty()) {
+            CategoryFolderRibbon(
+                folders = categoryFolderFilters,
+                selectedFolderId = selectedCategoryFolderId,
+                onFolderClick = onCategoryFolderClick,
+            )
+        }
+
         if (!isLoading && files.isEmpty()) {
             EmptyFilesCard()
         } else if (browseMode is BrowseMode.Category && browseMode.type == FileCategoryType.Images) {
             ImageGalleryGrid(
                 files = files,
+                isSelectionMode = isSelectionMode,
+                selectedFileIds = selectedFileIds,
                 onImageClick = onFileClick,
                 onImageLongClick = onFileLongClick,
             )
@@ -73,12 +98,45 @@ fun FileBrowserSection(
                 files.forEach { file ->
                     RecentFileRow(
                         file = file,
+                        isSelectionMode = isSelectionMode,
+                        isSelected = file.id in selectedFileIds,
                         onClick = { onFileClick(file) },
                         onLongClick = { onFileLongClick(file) },
                         onMoreClick = { onMoreClick(file) },
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CategoryFolderRibbon(
+    folders: List<CategoryFolderFilter>,
+    selectedFolderId: String?,
+    onFolderClick: (CategoryFolderFilter) -> Unit,
+) {
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp, end = 4.dp, bottom = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(
+            items = folders,
+            key = { it.id },
+        ) { folder ->
+            val selected = folder.id == selectedFolderId
+            Text(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(if (selected) FilesFlowPrimaryContainer else FilesFlowBackground)
+                    .clickable { onFolderClick(folder) }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                text = folder.name,
+                color = if (selected) FilesFlowPrimary else FilesFlowSecondary,
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+            )
         }
     }
 }

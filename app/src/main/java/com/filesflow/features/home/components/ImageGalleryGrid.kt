@@ -10,11 +10,13 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -26,6 +28,7 @@ import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import com.filesflow.features.home.FilesFlowFile
+import com.filesflow.ui.theme.FilesFlowPrimaryContainer
 
 private const val ImageGalleryColumns = 3
 private const val ImageGalleryRows = 6
@@ -37,6 +40,8 @@ val ImageGalleryVisibleSlots = ImageGalleryColumns * ImageGalleryRows
 @Composable
 fun ImageGalleryGrid(
     files: List<FilesFlowFile>,
+    isSelectionMode: Boolean = false,
+    selectedFileIds: Set<String> = emptySet(),
     onImageClick: (FilesFlowFile) -> Unit,
     onImageLongClick: (FilesFlowFile) -> Unit,
 ) {
@@ -55,6 +60,8 @@ fun ImageGalleryGrid(
         ) { file ->
             ImageGalleryTile(
                 file = file,
+                isSelectionMode = isSelectionMode,
+                isSelected = file.id in selectedFileIds,
                 onClick = { onImageClick(file) },
                 onLongClick = { onImageLongClick(file) },
             )
@@ -66,6 +73,8 @@ fun ImageGalleryGrid(
 @Composable
 private fun ImageGalleryTile(
     file: FilesFlowFile,
+    isSelectionMode: Boolean,
+    isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
@@ -103,5 +112,20 @@ private fun ImageGalleryTile(
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
         )
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(FilesFlowPrimaryContainer.copy(alpha = 0.42f)),
+            )
+        }
+        if (isSelectionMode) {
+            SelectionIndicator(
+                selected = isSelected,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp),
+            )
+        }
     }
 }

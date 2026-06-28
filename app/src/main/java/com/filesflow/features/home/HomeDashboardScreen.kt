@@ -18,8 +18,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -27,14 +29,22 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import com.filesflow.features.home.components.FileActionsCard
 import com.filesflow.features.home.components.FileBrowserSection
 import com.filesflow.features.home.components.CategoryGrid
@@ -55,13 +65,28 @@ fun HomeDashboardScreen(
     onOpenBrowseRoot: () -> Unit,
     onSearchFiles: (String) -> Unit,
     onOpenFile: (FilesFlowFile) -> Unit,
-    onRequestSafFolder: () -> Unit,
+    onShareFiles: (List<FilesFlowFile>) -> Unit,
+    onRequestDestinationFolder: (FileOperation, FilesFlowFile) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val isBrowserMode = uiState.browseMode != BrowseMode.Home
+    val selectableFiles = if (uiState.browseMode == BrowseMode.Home) uiState.recentFiles else uiState.visibleFiles
+    val selectedFiles = selectableFiles.filter { it.id in uiState.selectedFileIds }
 
-    BackHandler(enabled = uiState.selectedFile != null || isBrowserMode) {
-        if (uiState.selectedFile != null) {
+    fun handleFileClick(file: FilesFlowFile) {
+        if (uiState.isSelectionMode) {
+            viewModel.toggleFileSelection(file)
+        } else if (file.isDirectory) {
+            viewModel.openFolder(file)
+        } else {
+            onOpenFile(file)
+        }
+    }
+
+    BackHandler(enabled = uiState.isSelectionMode || uiState.selectedFile != null || isBrowserMode) {
+        if (uiState.isSelectionMode) {
+            viewModel.clearSelection()
+        } else if (uiState.selectedFile != null) {
             viewModel.dismissActions()
         } else {
             viewModel.openHome()
@@ -94,19 +119,34 @@ fun HomeDashboardScreen(
                             bottom = 128.dp,
                         ),
                     ),
-                verticalArrangement = Arrangement.spacedBy(32.dp),
+                    verticalArrangement = Arrangement.spacedBy(32.dp),
             ) {
+                if (selectedFiles.isNotEmpty()) {
+                    BatchSelectionBar(
+                        selectedCount = selectedFiles.size,
+                        onDelete = viewModel::deleteSelectedFiles,
+                        onShare = {
+                            viewModel.clearSelection()
+                            onShareFiles(selectedFiles)
+                        },
+                        onClear = viewModel::clearSelection,
+                    )
+                }
+
                 if (isBrowserMode) {
                     FileBrowserSection(
                         browseMode = uiState.browseMode,
                         files = uiState.visibleFiles,
                         isLoading = uiState.isLoading,
+                        categoryFolderFilters = uiState.categoryFolderFilters,
+                        selectedCategoryFolderId = uiState.selectedCategoryFolderId,
+                        isSelectionMode = uiState.isSelectionMode,
+                        selectedFileIds = uiState.selectedFileIds,
                         onBackHome = viewModel::openHome,
-                        onFileClick = { file ->
-                            if (file.isDirectory) viewModel.openFolder(file) else onOpenFile(file)
-                        },
-                        onFileLongClick = viewModel::selectFile,
+                        onFileClick = ::handleFileClick,
+                        onFileLongClick = viewModel::startFileSelection,
                         onMoreClick = viewModel::selectFile,
+                        onCategoryFolderClick = viewModel::toggleCategoryFolder,
                     )
                 } else {
                     StorageOverviewCard(
@@ -117,7 +157,7 @@ fun HomeDashboardScreen(
                     )
                     SearchAndBrowseCard(
                         query = uiState.searchQuery,
-                        onQueryChange = onSearchFiles,
+                        onSearch = onSearchFiles,
                         onBrowse = onOpenBrowseRoot,
                         onClear = viewModel::openHome,
                     )
@@ -127,11 +167,11 @@ fun HomeDashboardScreen(
                     )
                     RecentFilesList(
                         files = uiState.recentFiles,
+                        isSelectionMode = uiState.isSelectionMode,
+                        selectedFileIds = uiState.selectedFileIds,
                         onViewAll = onOpenBrowseRoot,
-                        onFileClick = { file ->
-                            if (file.isDirectory) viewModel.openFolder(file) else onOpenFile(file)
-                        },
-                        onFileLongClick = viewModel::selectFile,
+                        onFileClick = ::handleFileClick,
+                        onFileLongClick = viewModel::startFileSelection,
                         onMoreClick = viewModel::selectFile,
                     )
                 }
@@ -162,7 +202,7 @@ fun HomeDashboardScreen(
                 onMove = { viewModel.runOperation(FileOperation.Move, file) },
                 onRename = { newName -> viewModel.renameFile(file, newName) },
                 onDelete = { viewModel.runOperation(FileOperation.Delete, file) },
-                onChooseFolder = onRequestSafFolder,
+                onChooseFolder = { operation -> onRequestDestinationFolder(operation, file) },
                 onDismiss = viewModel::dismissActions,
             )
         }
@@ -172,10 +212,16 @@ fun HomeDashboardScreen(
 @Composable
 private fun SearchAndBrowseCard(
     query: String,
-    onQueryChange: (String) -> Unit,
+    onSearch: (String) -> Unit,
     onBrowse: () -> Unit,
     onClear: () -> Unit,
 ) {
+    var draftQuery by remember { mutableStateOf(query) }
+
+    LaunchedEffect(query) {
+        draftQuery = query
+    }
+
     NeumorphicSurface(
         modifier = Modifier.fillMaxWidth(),
         cornerRadius = 12.dp,
@@ -202,9 +248,13 @@ private fun SearchAndBrowseCard(
             Spacer(modifier = Modifier.height(12.dp))
             OutlinedTextField(
                 modifier = Modifier.fillMaxWidth(),
-                value = query,
-                onValueChange = onQueryChange,
+                value = draftQuery,
+                onValueChange = { draftQuery = it },
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(
+                    onSearch = { onSearch(draftQuery) },
+                ),
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Rounded.Search,
@@ -213,8 +263,13 @@ private fun SearchAndBrowseCard(
                     )
                 },
                 trailingIcon = {
-                    if (query.isNotBlank()) {
-                        IconButton(onClick = onClear) {
+                    if (draftQuery.isNotBlank()) {
+                        IconButton(
+                            onClick = {
+                                draftQuery = ""
+                                onClear()
+                            },
+                        ) {
                             Icon(
                                 imageVector = Icons.Rounded.Close,
                                 contentDescription = "Clear search",
@@ -231,6 +286,54 @@ private fun SearchAndBrowseCard(
                     unfocusedContainerColor = FilesFlowBackground,
                 ),
             )
+        }
+    }
+}
+
+@Composable
+private fun BatchSelectionBar(
+    selectedCount: Int,
+    onDelete: () -> Unit,
+    onShare: () -> Unit,
+    onClear: () -> Unit,
+) {
+    NeumorphicSurface(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = 12.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, top = 10.dp, end = 8.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                modifier = Modifier.weight(1f),
+                text = "$selectedCount selected",
+                color = FilesFlowOnSurface,
+                style = MaterialTheme.typography.labelMedium,
+            )
+            IconButton(onClick = onShare) {
+                Icon(
+                    imageVector = Icons.Rounded.Share,
+                    contentDescription = "Share selected files",
+                    tint = FilesFlowPrimary,
+                )
+            }
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Rounded.Delete,
+                    contentDescription = "Delete selected files",
+                    tint = FilesFlowPrimary,
+                )
+            }
+            IconButton(onClick = onClear) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = "Clear selection",
+                    tint = FilesFlowSecondary,
+                )
+            }
         }
     }
 }
@@ -279,7 +382,7 @@ private fun TextHeader(
         androidx.compose.material3.Text(
             text = title,
             color = titleColor,
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

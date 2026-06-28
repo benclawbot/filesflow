@@ -34,6 +34,11 @@ enum class FileOperation {
     Delete,
 }
 
+data class CategoryFolderFilter(
+    val id: String,
+    val name: String,
+)
+
 sealed interface BrowseMode {
     data object Home : BrowseMode
     data class Category(val type: FileCategoryType) : BrowseMode
@@ -87,11 +92,63 @@ data class FilesFlowUiState(
     val categories: List<FileCategorySummary> = emptyFileCategorySummaries(),
     val recentFiles: List<FilesFlowFile> = emptyList(),
     val visibleFiles: List<FilesFlowFile> = emptyList(),
+    val allCategoryFiles: List<FilesFlowFile> = emptyList(),
+    val categoryFolderFilters: List<CategoryFolderFilter> = emptyList(),
+    val selectedCategoryFolderId: String? = null,
     val browseMode: BrowseMode = BrowseMode.Home,
     val searchQuery: String = "",
     val selectedFile: FilesFlowFile? = null,
+    val selectedFileIds: Set<String> = emptySet(),
     val destinationFolderName: String? = null,
     val operationStatus: FileOperationStatus? = null,
     val accessState: StorageAccessState = StorageAccessState(),
     val isLoading: Boolean = false,
-)
+) {
+    val isSelectionMode: Boolean
+        get() = selectedFileIds.isNotEmpty()
+}
+
+fun toggledSelectedFileIds(currentSelection: Set<String>, file: FilesFlowFile): Set<String> {
+    return if (file.id in currentSelection) {
+        currentSelection - file.id
+    } else {
+        currentSelection + file.id
+    }
+}
+
+fun toggledCategoryFolderSelection(currentFolderId: String?, clickedFolderId: String): String? {
+    return if (currentFolderId == clickedFolderId) null else clickedFolderId
+}
+
+fun categoryFolderFilters(files: List<FilesFlowFile>): List<CategoryFolderFilter> {
+    return files
+        .mapNotNull { file -> file.categoryFolderId()?.let { id -> CategoryFolderFilter(id = id, name = id.substringAfterLast('/')) } }
+        .distinctBy { it.id }
+        .sortedBy { it.name.lowercase() }
+}
+
+fun filesForCategoryFolder(files: List<FilesFlowFile>, selectedFolderId: String?): List<FilesFlowFile> {
+    if (selectedFolderId == null) return files
+    return files.filter { it.categoryFolderId() == selectedFolderId }
+}
+
+private fun FilesFlowFile.categoryFolderId(): String? {
+    val rawPath = path?.replace('\\', '/')?.trim().orEmpty()
+    if (rawPath.isBlank()) return null
+
+    val normalized = rawPath.trimEnd('/')
+    if (normalized.isBlank()) return null
+
+    val parentPath = when {
+        source == FileSource.MediaStore && rawPath.endsWith("/") -> normalized
+        source == FileSource.DirectFile || source == FileSource.MediaStore -> normalized.substringBeforeLast(
+            delimiter = "/",
+            missingDelimiterValue = "",
+        )
+        else -> ""
+    }
+
+    return parentPath
+        .trim('/')
+        .takeIf { it.isNotBlank() }
+}

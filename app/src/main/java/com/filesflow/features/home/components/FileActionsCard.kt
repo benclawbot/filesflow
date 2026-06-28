@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.filesflow.features.home.FileOperation
 import com.filesflow.features.home.FilesFlowFile
 import com.filesflow.features.home.FileSource
 import com.filesflow.ui.theme.FilesFlowOnSurface
@@ -44,7 +45,7 @@ fun FileActionsCard(
     onMove: () -> Unit,
     onRename: (String) -> Unit,
     onDelete: () -> Unit,
-    onChooseFolder: () -> Unit,
+    onChooseFolder: (FileOperation) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var isRenaming by rememberSaveable(file.id) { mutableStateOf(false) }
@@ -90,8 +91,15 @@ fun FileActionsCard(
             if (!hasDestinationFolder) {
                 ActionButton(
                     icon = { Icon(Icons.Rounded.FolderSpecial, contentDescription = null) },
-                    text = "Choose Destination Folder",
-                    onClick = onChooseFolder,
+                    text = "Choose Folder to Copy",
+                    onClick = { onChooseFolder(FileOperation.Copy) },
+                    enabled = !file.isDirectory,
+                )
+                ActionButton(
+                    icon = { Icon(Icons.Rounded.FolderSpecial, contentDescription = null) },
+                    text = "Choose Folder to Move",
+                    onClick = { onChooseFolder(FileOperation.Move) },
+                    enabled = !file.isDirectory,
                 )
             } else {
                 ActionButton(

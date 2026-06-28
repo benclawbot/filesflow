@@ -44,7 +44,7 @@ fun StorageOverviewCard(
         cornerRadius = 12.dp,
     ) {
         Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(16.dp),
         ) {
             Row(
                 modifier = Modifier

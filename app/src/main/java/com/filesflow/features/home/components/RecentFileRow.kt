@@ -35,7 +35,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -52,6 +51,7 @@ import com.filesflow.features.home.FileSource
 import com.filesflow.features.home.FilesFlowFile
 import com.filesflow.ui.theme.FilesFlowOnSurface
 import com.filesflow.ui.theme.FilesFlowOnSurfaceVariant
+import com.filesflow.ui.theme.FilesFlowPrimaryContainer
 import com.filesflow.ui.theme.FilesFlowSecondary
 import com.filesflow.ui.theme.FilesFlowSurfaceContainerHigh
 
@@ -59,6 +59,8 @@ import com.filesflow.ui.theme.FilesFlowSurfaceContainerHigh
 @Composable
 fun RecentFileRow(
     file: FilesFlowFile,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onMoreClick: () -> Unit,
@@ -85,6 +87,7 @@ fun RecentFileRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(if (isSelected) FilesFlowPrimaryContainer.copy(alpha = 0.58f) else Color.Transparent)
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -106,12 +109,16 @@ fun RecentFileRow(
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
-            IconButton(onClick = onMoreClick) {
-                Icon(
-                    imageVector = Icons.Rounded.MoreVert,
-                    contentDescription = "More options for ${file.name}",
-                    tint = FilesFlowSecondary,
-                )
+            if (isSelectionMode) {
+                SelectionIndicator(selected = isSelected)
+            } else {
+                IconButton(onClick = onMoreClick) {
+                    Icon(
+                        imageVector = Icons.Rounded.MoreVert,
+                        contentDescription = "More options for ${file.name}",
+                        tint = FilesFlowSecondary,
+                    )
+                }
             }
         }
     }

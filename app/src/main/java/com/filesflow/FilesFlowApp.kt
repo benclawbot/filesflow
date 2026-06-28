@@ -22,12 +22,14 @@ import com.filesflow.data.AndroidFileManagerRepository
 import com.filesflow.features.home.FileCategoryType
 import com.filesflow.features.home.FilesFlowFile
 import com.filesflow.features.home.FilesFlowViewModel
+import com.filesflow.features.home.FileOperation
 import com.filesflow.features.home.HomeDashboardScreen
 import com.filesflow.features.home.StorageAccessState
 import com.filesflow.features.home.SystemAccessRequest
 import com.filesflow.features.home.allFilesAccessIntent
 import com.filesflow.features.home.currentStorageAccessState
 import com.filesflow.features.home.fileOpenIntent
+import com.filesflow.features.home.fileShareIntent
 import com.filesflow.features.home.mediaPermissionRequest
 import com.filesflow.features.home.systemAccessRequestForBroadFiles
 import com.filesflow.features.home.systemAccessRequestForCategory
@@ -39,6 +41,11 @@ private sealed interface PendingFilesFlowAction {
     data class Search(val query: String) : PendingFilesFlowAction
 }
 
+private data class PendingDestinationOperation(
+    val operation: FileOperation,
+    val file: FilesFlowFile,
+)
+
 @Composable
 fun FilesFlowApp() {
     val context = LocalContext.current
@@ -46,6 +53,7 @@ fun FilesFlowApp() {
     val repository = remember(context) { AndroidFileManagerRepository(context) }
     var currentAccessState by remember { mutableStateOf(currentStorageAccessState(context)) }
     var pendingAction by remember { mutableStateOf<PendingFilesFlowAction?>(null) }
+    var pendingDestinationOperation by remember { mutableStateOf<PendingDestinationOperation?>(null) }
     val viewModel = viewModel<FilesFlowViewModel>(
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
@@ -114,8 +122,15 @@ fun FilesFlowApp() {
     val safFolderLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree(),
     ) { uri ->
+        val destinationOperation = pendingDestinationOperation
+        pendingDestinationOperation = null
         if (uri != null) {
             viewModel.persistSafFolder(uri)
+            if (destinationOperation != null) {
+                viewModel.runOperation(destinationOperation.operation, destinationOperation.file)
+            } else {
+                viewModel.openBrowseRoot()
+            }
         }
         updateDashboardAccess()
     }
@@ -174,6 +189,19 @@ fun FilesFlowApp() {
         }
     }
 
+    fun shareFiles(files: List<FilesFlowFile>) {
+        val intent = fileShareIntent(context, files)
+        if (intent == null) {
+            viewModel.showShareFailed()
+            return
+        }
+        runCatching {
+            context.startActivity(intent)
+        }.onFailure {
+            viewModel.showShareFailed()
+        }
+    }
+
     LaunchedEffect(Unit) {
         refreshDashboard()
     }
@@ -202,7 +230,9 @@ fun FilesFlowApp() {
                 openWithAccess(PendingFilesFlowAction.Search(query))
             },
             onOpenFile = ::openFile,
-            onRequestSafFolder = {
+            onShareFiles = ::shareFiles,
+            onRequestDestinationFolder = { operation, file ->
+                pendingDestinationOperation = PendingDestinationOperation(operation, file)
                 safFolderLauncher.launch(null)
             },
         )

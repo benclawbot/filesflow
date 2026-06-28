@@ -20,6 +20,8 @@ import com.filesflow.ui.theme.FilesFlowSecondary
 @Composable
 fun RecentFilesList(
     files: List<FilesFlowFile>,
+    isSelectionMode: Boolean = false,
+    selectedFileIds: Set<String> = emptySet(),
     onViewAll: () -> Unit,
     onFileClick: (FilesFlowFile) -> Unit,
     onFileLongClick: (FilesFlowFile) -> Unit,
@@ -51,6 +53,8 @@ fun RecentFilesList(
             files.forEach { file ->
                 RecentFileRow(
                     file = file,
+                    isSelectionMode = isSelectionMode,
+                    isSelected = file.id in selectedFileIds,
                     onClick = { onFileClick(file) },
                     onLongClick = { onFileLongClick(file) },
                     onMoreClick = { onMoreClick(file) },

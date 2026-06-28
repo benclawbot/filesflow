@@ -43,22 +43,51 @@ class FilesFlowViewModel(
     }
 
     fun openHome() {
-        _uiState.update { it.copy(browseMode = BrowseMode.Home, visibleFiles = emptyList(), searchQuery = "", selectedFile = null) }
+        _uiState.update {
+            it.copy(
+                browseMode = BrowseMode.Home,
+                visibleFiles = emptyList(),
+                allCategoryFiles = emptyList(),
+                categoryFolderFilters = emptyList(),
+                selectedCategoryFolderId = null,
+                searchQuery = "",
+                selectedFile = null,
+                selectedFileIds = emptySet(),
+            )
+        }
     }
 
     fun openCategory(type: FileCategoryType) {
-        _uiState.update { it.copy(isLoading = true, browseMode = BrowseMode.Category(type), selectedFile = null) }
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                browseMode = BrowseMode.Category(type),
+                selectedFile = null,
+                selectedFileIds = emptySet(),
+                selectedCategoryFolderId = null,
+            )
+        }
         viewModelScope.launch {
-            val files = runCatching { repository.listCategory(type) }.getOrDefault(emptyList())
-            _uiState.update { it.copy(visibleFiles = files, isLoading = false) }
+            val browserFiles = loadBrowserFiles(BrowseMode.Category(type), selectedCategoryFolderId = null)
+            _uiState.update { it.withBrowserFiles(browserFiles).copy(isLoading = false) }
         }
     }
 
     fun openBrowseRoot() {
-        _uiState.update { it.copy(isLoading = true, browseMode = BrowseMode.Folder(null, "Browse Files"), selectedFile = null) }
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                browseMode = BrowseMode.Folder(null, "Browse Files"),
+                selectedFile = null,
+                selectedFileIds = emptySet(),
+                allCategoryFiles = emptyList(),
+                categoryFolderFilters = emptyList(),
+                selectedCategoryFolderId = null,
+            )
+        }
         viewModelScope.launch {
-            val files = runCatching { repository.listBrowseRoot() }.getOrDefault(emptyList())
-            _uiState.update { it.copy(visibleFiles = files, isLoading = false) }
+            val browserFiles = loadBrowserFiles(BrowseMode.Folder(null, "Browse Files"), selectedCategoryFolderId = null)
+            _uiState.update { it.withBrowserFiles(browserFiles).copy(isLoading = false) }
         }
     }
 
@@ -76,11 +105,23 @@ class FilesFlowViewModel(
                     source = file.source,
                 ),
                 selectedFile = null,
+                selectedFileIds = emptySet(),
+                allCategoryFiles = emptyList(),
+                categoryFolderFilters = emptyList(),
+                selectedCategoryFolderId = null,
             )
         }
         viewModelScope.launch {
-            val files = runCatching { repository.listFolder(file) }.getOrDefault(emptyList())
-            _uiState.update { it.copy(visibleFiles = files, isLoading = false) }
+            val browserFiles = loadBrowserFiles(
+                mode = BrowseMode.Folder(
+                    uri = file.uri,
+                    displayName = file.name,
+                    path = file.path,
+                    source = file.source,
+                ),
+                selectedCategoryFolderId = null,
+            )
+            _uiState.update { it.withBrowserFiles(browserFiles).copy(isLoading = false) }
         }
     }
 
@@ -96,21 +137,72 @@ class FilesFlowViewModel(
         }
     }
 
+    fun showShareFailed() {
+        _uiState.update {
+            it.copy(
+                operationStatus = FileOperationStatus(
+                    title = "Share failed",
+                    detail = "Android could not prepare those files for sharing.",
+                ),
+                isLoading = false,
+            )
+        }
+    }
+
     fun search(query: String) {
         _uiState.update { it.copy(searchQuery = query) }
         if (query.isBlank()) {
             openHome()
             return
         }
-        _uiState.update { it.copy(isLoading = true, browseMode = BrowseMode.Search(query), selectedFile = null) }
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                browseMode = BrowseMode.Search(query),
+                selectedFile = null,
+                selectedFileIds = emptySet(),
+                allCategoryFiles = emptyList(),
+                categoryFolderFilters = emptyList(),
+                selectedCategoryFolderId = null,
+            )
+        }
         viewModelScope.launch {
-            val files = runCatching { repository.searchFiles(query) }.getOrDefault(emptyList())
-            _uiState.update { it.copy(visibleFiles = files, isLoading = false) }
+            val browserFiles = loadBrowserFiles(BrowseMode.Search(query), selectedCategoryFolderId = null)
+            _uiState.update { it.withBrowserFiles(browserFiles).copy(isLoading = false) }
         }
     }
 
     fun selectFile(file: FilesFlowFile) {
-        _uiState.update { it.copy(selectedFile = file) }
+        _uiState.update { it.copy(selectedFile = file, selectedFileIds = emptySet()) }
+    }
+
+    fun startFileSelection(file: FilesFlowFile) {
+        _uiState.update { it.copy(selectedFile = null, selectedFileIds = setOf(file.id)) }
+    }
+
+    fun toggleFileSelection(file: FilesFlowFile) {
+        _uiState.update {
+            it.copy(
+                selectedFile = null,
+                selectedFileIds = toggledSelectedFileIds(it.selectedFileIds, file),
+            )
+        }
+    }
+
+    fun clearSelection() {
+        _uiState.update { it.copy(selectedFileIds = emptySet()) }
+    }
+
+    fun toggleCategoryFolder(folder: CategoryFolderFilter) {
+        _uiState.update {
+            val nextSelectedFolderId = toggledCategoryFolderSelection(it.selectedCategoryFolderId, folder.id)
+            it.copy(
+                selectedCategoryFolderId = nextSelectedFolderId,
+                visibleFiles = filesForCategoryFolder(it.allCategoryFiles, nextSelectedFolderId),
+                selectedFile = null,
+                selectedFileIds = emptySet(),
+            )
+        }
     }
 
     fun dismissActions() {
@@ -142,37 +234,60 @@ class FilesFlowViewModel(
                 operationStatus = FileOperationStatus("Folder selected", "FilesFlow can now copy or move files into the selected folder."),
             )
         }
-        openBrowseRoot()
     }
 
     fun runOperation(operation: FileOperation, file: FilesFlowFile) {
-        _uiState.update { it.copy(isLoading = true, selectedFile = null) }
+        _uiState.update { it.copy(isLoading = true, selectedFile = null, selectedFileIds = emptySet()) }
         viewModelScope.launch {
             val mode = _uiState.value.browseMode
+            val selectedCategoryFolderId = _uiState.value.selectedCategoryFolderId
             val status = when (operation) {
                 FileOperation.Copy -> repository.copyToSafFolder(file)
                 FileOperation.Move -> repository.moveToSafFolder(file)
                 FileOperation.Delete -> repository.delete(file)
             }
-            val visibleFiles = loadVisibleFiles(mode)
-            _uiState.update { it.copy(operationStatus = status, visibleFiles = visibleFiles, isLoading = false) }
+            val browserFiles = loadBrowserFiles(mode, selectedCategoryFolderId)
+            _uiState.update { it.withBrowserFiles(browserFiles).copy(operationStatus = status, isLoading = false) }
+            refresh()
+        }
+    }
+
+    fun deleteSelectedFiles() {
+        val state = _uiState.value
+        val files = state.selectableFiles().filter { it.id in state.selectedFileIds }
+        if (files.isEmpty()) return
+
+        _uiState.update { it.copy(isLoading = true, selectedFile = null, selectedFileIds = emptySet()) }
+        viewModelScope.launch {
+            val mode = _uiState.value.browseMode
+            val selectedCategoryFolderId = _uiState.value.selectedCategoryFolderId
+            val statuses = files.map { repository.delete(it) }
+            val deletedCount = statuses.count { it.title == "Deleted" }
+            val status = when {
+                deletedCount == files.size -> FileOperationStatus("Deleted", "$deletedCount selected ${"file".pluralized(deletedCount)} deleted.")
+                deletedCount > 0 -> FileOperationStatus("Some files deleted", "$deletedCount of ${files.size} selected files were deleted.")
+                else -> FileOperationStatus("Delete unavailable", "Android did not allow FilesFlow to delete the selected files.")
+            }
+            val browserFiles = loadBrowserFiles(mode, selectedCategoryFolderId)
+            _uiState.update { it.withBrowserFiles(browserFiles).copy(operationStatus = status, isLoading = false) }
             refresh()
         }
     }
 
     fun renameFile(file: FilesFlowFile, newName: String) {
-        _uiState.update { it.copy(isLoading = true, selectedFile = null) }
+        _uiState.update { it.copy(isLoading = true, selectedFile = null, selectedFileIds = emptySet()) }
         viewModelScope.launch {
             val mode = _uiState.value.browseMode
+            val selectedCategoryFolderId = _uiState.value.selectedCategoryFolderId
             val status = repository.rename(file, newName)
-            val visibleFiles = loadVisibleFiles(mode)
-            _uiState.update { it.copy(operationStatus = status, visibleFiles = visibleFiles, isLoading = false) }
+            val browserFiles = loadBrowserFiles(mode, selectedCategoryFolderId)
+            _uiState.update { it.withBrowserFiles(browserFiles).copy(operationStatus = status, isLoading = false) }
             refresh()
         }
     }
 
-    private suspend fun loadVisibleFiles(mode: BrowseMode): List<FilesFlowFile> {
-        return runCatching {
+    private suspend fun loadBrowserFiles(mode: BrowseMode, selectedCategoryFolderId: String?): BrowserFiles {
+        val allFiles = runCatching {
             when (mode) {
                 BrowseMode.Home -> emptyList()
                 is BrowseMode.Category -> repository.listCategory(mode.type)
@@ -197,5 +312,42 @@ class FilesFlowViewModel(
                 is BrowseMode.Search -> repository.searchFiles(mode.query)
             }
         }.getOrDefault(emptyList())
+
+        if (mode !is BrowseMode.Category) {
+            return BrowserFiles(visibleFiles = allFiles)
+        }
+
+        val folders = categoryFolderFilters(allFiles)
+        val activeFolderId = selectedCategoryFolderId?.takeIf { selectedId -> folders.any { it.id == selectedId } }
+        return BrowserFiles(
+            visibleFiles = filesForCategoryFolder(allFiles, activeFolderId),
+            allCategoryFiles = allFiles,
+            categoryFolderFilters = folders,
+            selectedCategoryFolderId = activeFolderId,
+        )
     }
+
+    private fun FilesFlowUiState.withBrowserFiles(browserFiles: BrowserFiles): FilesFlowUiState {
+        return copy(
+            visibleFiles = browserFiles.visibleFiles,
+            allCategoryFiles = browserFiles.allCategoryFiles,
+            categoryFolderFilters = browserFiles.categoryFolderFilters,
+            selectedCategoryFolderId = browserFiles.selectedCategoryFolderId,
+        )
+    }
+
+    private fun FilesFlowUiState.selectableFiles(): List<FilesFlowFile> {
+        return if (browseMode == BrowseMode.Home) recentFiles else visibleFiles
+    }
+
+    private fun String.pluralized(count: Int): String {
+        return if (count == 1) this else "${this}s"
+    }
+
+    private data class BrowserFiles(
+        val visibleFiles: List<FilesFlowFile>,
+        val allCategoryFiles: List<FilesFlowFile> = emptyList(),
+        val categoryFolderFilters: List<CategoryFolderFilter> = emptyList(),
+        val selectedCategoryFolderId: String? = null,
+    )
 }

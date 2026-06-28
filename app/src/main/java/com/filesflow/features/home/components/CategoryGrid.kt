@@ -21,7 +21,7 @@ fun CategoryGrid(
 ) {
     Column {
         Text(
-            modifier = Modifier.padding(start = 4.dp, bottom = 16.dp),
+            modifier = Modifier.padding(start = 16.dp, bottom = 16.dp),
             text = "Categories",
             color = FilesFlowAccentOrange,
             style = MaterialTheme.typography.labelMedium,

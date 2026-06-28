@@ -109,4 +109,60 @@ class HomeDashboardContentTest {
             systemAccessRequestForCategory(FileCategoryType.Docs, noAccess.copy(hasAllFilesAccess = true)),
         )
     }
+
+    @Test
+    fun multiSelectionTogglesFileIds() {
+        val file = testFile(id = "file-1", name = "Report.pdf")
+
+        val selected = toggledSelectedFileIds(emptySet(), file)
+        assertEquals(setOf("file-1"), selected)
+
+        assertTrue(toggledSelectedFileIds(selected, file).isEmpty())
+    }
+
+    @Test
+    fun categoryFolderFiltersUseFileParentFolders() {
+        val files = listOf(
+            testFile(id = "1", name = "a.jpg", path = "/storage/emulated/0/DCIM/Camera/a.jpg", source = FileSource.DirectFile),
+            testFile(id = "2", name = "b.jpg", path = "/storage/emulated/0/Pictures/Screenshots/b.jpg", source = FileSource.DirectFile),
+            testFile(id = "3", name = "c.jpg", path = "Pictures/Camera/", source = FileSource.MediaStore),
+            testFile(id = "4", name = "d.jpg", path = "Pictures/Camera/", source = FileSource.MediaStore),
+        )
+
+        assertEquals(
+            listOf("Camera", "Camera", "Screenshots"),
+            categoryFolderFilters(files).map { it.name },
+        )
+    }
+
+    @Test
+    fun categoryFolderSelectionTogglesAndFiltersVisibleFiles() {
+        val camera = testFile(id = "1", name = "camera.jpg", path = "Pictures/Camera/", source = FileSource.MediaStore)
+        val screenshot = testFile(id = "2", name = "screen.jpg", path = "Pictures/Screenshots/", source = FileSource.MediaStore)
+
+        val selectedFolder = toggledCategoryFolderSelection(null, "Pictures/Camera")
+        assertEquals("Pictures/Camera", selectedFolder)
+        assertEquals(listOf(camera), filesForCategoryFolder(listOf(camera, screenshot), selectedFolder))
+
+        assertEquals(null, toggledCategoryFolderSelection(selectedFolder, "Pictures/Camera"))
+    }
+
+    private fun testFile(
+        id: String,
+        name: String,
+        path: String? = null,
+        source: FileSource = FileSource.DirectFile,
+    ): FilesFlowFile {
+        return FilesFlowFile(
+            id = id,
+            name = name,
+            metadata = "1 KB - Today",
+            uri = null,
+            path = path,
+            mimeType = "image/jpeg",
+            sizeBytes = 1024L,
+            modifiedAtMillis = 0L,
+            source = source,
+        )
+    }
 }
