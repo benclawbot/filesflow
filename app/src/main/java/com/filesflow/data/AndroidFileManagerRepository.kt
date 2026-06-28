@@ -12,6 +12,7 @@ import android.os.StatFs
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 import androidx.documentfile.provider.DocumentFile
+import com.filesflow.features.home.FavoriteFolder
 import com.filesflow.features.home.FileCategorySummary
 import com.filesflow.features.home.FileCategoryType
 import com.filesflow.features.home.FileManagerRepository
@@ -19,6 +20,7 @@ import com.filesflow.features.home.FileOperationStatus
 import com.filesflow.features.home.FileSource
 import com.filesflow.features.home.FilesFlowFile
 import com.filesflow.features.home.StorageOverview
+import com.filesflow.features.home.favoriteFolderIdFor
 import com.filesflow.features.home.formatFileMetadata
 import com.filesflow.features.home.formatStorageLabel
 import com.filesflow.features.home.inferCategoryType
@@ -26,6 +28,8 @@ import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 
 class AndroidFileManagerRepository(
     context: Context,
@@ -215,6 +219,29 @@ class AndroidFileManagerRepository(
     }
 
     override fun getPersistedSafFolderName(): String? = getPersistedSafDocument()?.name
+
+    override fun getFavoriteFolders(): List<FavoriteFolder> = readFavoriteFolders()
+
+    override fun toggleFavoriteFolder(folder: FilesFlowFile): FileOperationStatus {
+        if (!folder.isDirectory) {
+            return FileOperationStatus("Favorite unavailable", "Only folders can be added to favorites.")
+        }
+        if (folder.source != FileSource.DirectFile && folder.source != FileSource.Saf) {
+            return FileOperationStatus("Favorite unavailable", "This Android location cannot be saved as a favorite folder.")
+        }
+        val favorite = folder.toFavoriteFolder()
+        val current = readFavoriteFolders().toMutableList()
+        val existingIndex = current.indexOfFirst { it.id == favorite.id }
+        return if (existingIndex >= 0) {
+            current.removeAt(existingIndex)
+            writeFavoriteFolders(current)
+            FileOperationStatus("Removed favorite", "${folder.name} was removed from favorite folders.")
+        } else {
+            current.add(0, favorite)
+            writeFavoriteFolders(current)
+            FileOperationStatus("Added favorite", "${folder.name} will appear on Home and as a move/copy suggestion.")
+        }
+    }
 
     private fun listCategoryInternal(type: FileCategoryType, limit: Int): List<FilesFlowFile> {
         val (selection, args) = when (type) {
@@ -515,6 +542,55 @@ class AndroidFileManagerRepository(
         }
     }.getOrDefault(false)
 
+    private fun FilesFlowFile.toFavoriteFolder(): FavoriteFolder {
+        return FavoriteFolder(
+            id = favoriteFolderIdFor(this),
+            name = name,
+            uri = uri,
+            path = path,
+            source = source,
+        )
+    }
+
+    private fun readFavoriteFolders(): List<FavoriteFolder> {
+        val raw = preferences.getString(KEY_FAVORITE_FOLDERS, "[]").orEmpty()
+        return runCatching {
+            val array = JSONArray(raw)
+            buildList {
+                for (index in 0 until array.length()) {
+                    val item = array.optJSONObject(index) ?: continue
+                    val id = item.optString("id").takeIf { it.isNotBlank() } ?: continue
+                    val source = runCatching { FileSource.valueOf(item.optString("source")) }.getOrNull() ?: continue
+                    add(
+                        FavoriteFolder(
+                            id = id,
+                            name = item.optString("name").takeIf { it.isNotBlank() } ?: "Favorite folder",
+                            uri = item.optString("uri").takeIf { it.isNotBlank() }?.let(Uri::parse),
+                            path = item.optString("path").takeIf { it.isNotBlank() },
+                            source = source,
+                        ),
+                    )
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun writeFavoriteFolders(folders: List<FavoriteFolder>) {
+        val array = JSONArray()
+        folders.forEach { folder ->
+            array.put(
+                JSONObject().apply {
+                    put("id", folder.id)
+                    put("name", folder.name)
+                    put("uri", folder.uri?.toString().orEmpty())
+                    put("path", folder.path.orEmpty())
+                    put("source", folder.source.name)
+                },
+            )
+        }
+        preferences.edit().putString(KEY_FAVORITE_FOLDERS, array.toString()).apply()
+    }
+
     private fun File.listFilesSafely(): List<File> = runCatching { listFiles()?.toList().orEmpty() }.getOrDefault(emptyList())
 
     private fun File.toDirectFileItem(): FilesFlowFile {
@@ -554,5 +630,6 @@ class AndroidFileManagerRepository(
 
     companion object {
         private const val KEY_SAF_URI = "saf-tree-uri"
+        private const val KEY_FAVORITE_FOLDERS = "favorite-folders"
     }
 }
