@@ -127,6 +127,25 @@ fun toggledSelectedFileIds(currentSelection: Set<String>, file: FilesFlowFile): 
     }
 }
 
+/**
+ * Returns the id-set that selects every file in [visibleFiles]. Use this for the
+ * category topbar "select all" toggle so the selection always matches what the
+ * user currently sees (respecting any active category-folder filter).
+ */
+fun selectAllVisibleFileIds(visibleFiles: List<FilesFlowFile>): Set<String> {
+    return visibleFiles.map { it.id }.toSet()
+}
+
+/**
+ * True when every file in [visibleFiles] is currently in [selectedFileIds] AND
+ * there is at least one visible file. Drives the topbar select-all toggle's
+ * checked/unchecked state.
+ */
+fun isAllVisibleSelected(visibleFiles: List<FilesFlowFile>, selectedFileIds: Set<String>): Boolean {
+    if (visibleFiles.isEmpty()) return false
+    return visibleFiles.all { it.id in selectedFileIds }
+}
+
 fun toggledCategoryFolderSelection(currentFolderId: String?, clickedFolderId: String): String? {
     return if (currentFolderId == clickedFolderId) null else clickedFolderId
 }

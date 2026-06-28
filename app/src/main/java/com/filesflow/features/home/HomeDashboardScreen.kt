@@ -163,6 +163,9 @@ fun HomeDashboardScreen(
                         onMoreClick = { file ->
                             if (!isDestinationPicker) viewModel.selectFile(file)
                         },
+                        onSelectAllToggle = {
+                            if (!isDestinationPicker) viewModel.toggleSelectAllVisible()
+                        },
                         onCategoryFolderClick = viewModel::toggleCategoryFolder,
                     )
                 } else {
