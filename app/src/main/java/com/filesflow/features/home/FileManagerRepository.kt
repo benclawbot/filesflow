@@ -19,4 +19,6 @@ interface FileManagerRepository {
     suspend fun delete(file: FilesFlowFile): FileOperationStatus
     fun persistSafFolder(uri: Uri)
     fun getPersistedSafFolderName(): String?
+    fun getFavoriteFolders(): List<FavoriteFolder>
+    fun toggleFavoriteFolder(folder: FilesFlowFile): FileOperationStatus
 }
