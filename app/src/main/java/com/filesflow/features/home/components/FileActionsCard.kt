@@ -10,6 +10,9 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.FolderSpecial
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DriveFileRenameOutline
+import androidx.compose.material.icons.rounded.Print
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import com.filesflow.features.home.FileOperation
 import com.filesflow.features.home.FilesFlowFile
 import com.filesflow.features.home.FileSource
+import com.filesflow.features.home.isPrintableFile
 import com.filesflow.ui.theme.FilesFlowOnSurface
 import com.filesflow.ui.theme.FilesFlowPrimary
 import com.filesflow.ui.theme.FilesFlowSecondary
@@ -38,9 +42,12 @@ import com.filesflow.ui.theme.FilesFlowSecondary
 fun FileActionsCard(
     modifier: Modifier = Modifier,
     file: FilesFlowFile,
+    isFavoriteFolder: Boolean = false,
     onRename: (String) -> Unit,
     onDelete: () -> Unit,
+    onPrint: () -> Unit,
     onChooseFolder: (FileOperation) -> Unit,
+    onToggleFavoriteFolder: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     var isRenaming by rememberSaveable(file.id) { mutableStateOf(false) }
@@ -83,6 +90,20 @@ fun FileActionsCard(
                 }
             }
 
+            if (file.isDirectory) {
+                ActionButton(
+                    icon = { Icon(if (isFavoriteFolder) Icons.Rounded.Star else Icons.Rounded.StarBorder, contentDescription = null) },
+                    text = if (isFavoriteFolder) "Unstar Favorite Folder" else "Star Favorite Folder",
+                    onClick = onToggleFavoriteFolder,
+                )
+            }
+            if (isPrintableFile(file)) {
+                ActionButton(
+                    icon = { Icon(Icons.Rounded.Print, contentDescription = null) },
+                    text = "Print / Save as PDF",
+                    onClick = onPrint,
+                )
+            }
             ActionButton(
                 icon = { Icon(Icons.Rounded.FolderSpecial, contentDescription = null) },
                 text = "Copy to Folder",
