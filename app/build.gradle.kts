@@ -8,12 +8,18 @@ val releaseKeystorePath = providers.environmentVariable("FILESFLOW_KEYSTORE_PATH
 val releaseKeystorePassword = providers.environmentVariable("FILESFLOW_KEYSTORE_PASSWORD").orNull
 val releaseKeyAlias = providers.environmentVariable("FILESFLOW_KEY_ALIAS").orNull
 val releaseKeyPassword = providers.environmentVariable("FILESFLOW_KEY_PASSWORD").orNull
-val releaseSigningConfigured = listOf(
+val releaseSigningValues = listOf(
     releaseKeystorePath,
     releaseKeystorePassword,
     releaseKeyAlias,
     releaseKeyPassword,
-).all { !it.isNullOrBlank() }
+)
+val releaseSigningConfigured = releaseSigningValues.all { !it.isNullOrBlank() }
+val releaseSigningPartiallyConfigured = releaseSigningValues.any { !it.isNullOrBlank() } && !releaseSigningConfigured
+
+check(!releaseSigningPartiallyConfigured) {
+    "Release signing requires FILESFLOW_KEYSTORE_PATH, FILESFLOW_KEYSTORE_PASSWORD, FILESFLOW_KEY_ALIAS, and FILESFLOW_KEY_PASSWORD together"
+}
 
 android {
     namespace = "com.filesflow"
