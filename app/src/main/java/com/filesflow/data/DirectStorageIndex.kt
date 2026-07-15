@@ -12,7 +12,6 @@ import com.filesflow.features.home.FilesFlowFile
 import com.filesflow.features.home.formatFileMetadata
 import com.filesflow.features.home.inferCategoryType
 import java.io.File
-import java.util.Locale
 
 /**
  * Durable, atomic index of files visible through Android's broad shared-storage access.
@@ -98,24 +97,36 @@ internal class DirectStorageIndex(context: Context) : SQLiteOpenHelper(
         return summaries
     }
 
-    fun listCategory(type: FileCategoryType, limit: Int = CATEGORY_RESULT_LIMIT): List<FilesFlowFile> {
+    fun listCategory(
+        type: FileCategoryType,
+        limit: Int = StorageIndexQueryPolicy.CATEGORY_RESULT_LIMIT,
+    ): List<FilesFlowFile> {
         if (type == FileCategoryType.Apps) return emptyList()
         return queryFiles(
             selection = "category = ?",
             selectionArgs = arrayOf(type.name),
             orderBy = "modified_at_millis DESC, name_lower ASC",
-            limit = limit,
+            limit = StorageIndexQueryPolicy.boundedLimit(
+                requested = limit,
+                maximum = StorageIndexQueryPolicy.CATEGORY_RESULT_LIMIT,
+            ),
         )
     }
 
-    fun search(query: String, limit: Int = SEARCH_RESULT_LIMIT): List<FilesFlowFile> {
-        val normalized = query.trim().lowercase(Locale.US)
+    fun search(
+        query: String,
+        limit: Int = StorageIndexQueryPolicy.SEARCH_RESULT_LIMIT,
+    ): List<FilesFlowFile> {
+        val normalized = StorageIndexQueryPolicy.normalizeSearchQuery(query)
         if (normalized.isBlank()) return emptyList()
         return queryFiles(
             selection = "name_lower LIKE ? ESCAPE '\\'",
-            selectionArgs = arrayOf("%${escapeLike(normalized)}%"),
+            selectionArgs = arrayOf(StorageIndexQueryPolicy.containsPattern(normalized)),
             orderBy = "modified_at_millis DESC, name_lower ASC",
-            limit = limit,
+            limit = StorageIndexQueryPolicy.boundedLimit(
+                requested = limit,
+                maximum = StorageIndexQueryPolicy.SEARCH_RESULT_LIMIT,
+            ),
         )
     }
 
@@ -160,7 +171,7 @@ internal class DirectStorageIndex(context: Context) : SQLiteOpenHelper(
         val values = ContentValues().apply {
             put("path", path)
             put("name", file.name.ifBlank { path })
-            put("name_lower", file.name.lowercase(Locale.US))
+            put("name_lower", file.name.lowercase())
             put("parent_path", file.parent.orEmpty())
             put("category", category.name)
             put("size_bytes", file.length().coerceAtLeast(0L))
@@ -185,7 +196,7 @@ internal class DirectStorageIndex(context: Context) : SQLiteOpenHelper(
             null,
             null,
             orderBy,
-            limit.coerceAtLeast(1).toString(),
+            limit.toString(),
         ).use { cursor ->
             while (cursor.moveToNext()) {
                 val path = cursor.getString(0)
@@ -212,13 +223,6 @@ internal class DirectStorageIndex(context: Context) : SQLiteOpenHelper(
         return runCatching { listFiles()?.toList().orEmpty() }.getOrDefault(emptyList())
     }
 
-    private fun escapeLike(value: String): String {
-        return value
-            .replace("\\", "\\\\")
-            .replace("%", "\\%")
-            .replace("_", "\\_")
-    }
-
     companion object {
         private const val DATABASE_NAME = "direct-storage-index.db"
         private const val DATABASE_VERSION = 1
@@ -228,7 +232,5 @@ internal class DirectStorageIndex(context: Context) : SQLiteOpenHelper(
         private const val KEY_INDEXED_FILE_COUNT = "indexed-file-count"
         private const val KEY_INDEXED_ROOT = "indexed-root"
         private const val DEFAULT_MAX_AGE_MILLIS = 5 * 60 * 1000L
-        private const val CATEGORY_RESULT_LIMIT = 1_000
-        private const val SEARCH_RESULT_LIMIT = 250
     }
 }
