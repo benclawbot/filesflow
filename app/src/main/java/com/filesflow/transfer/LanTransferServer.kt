@@ -46,6 +46,7 @@ class LanTransferServer(context: Context) : AutoCloseable {
         val expiresAtMillis: Long,
         val port: Int,
         val addresses: List<String>,
+        val landingUrl: String,
         val items: List<SharedItem>,
     )
 
@@ -69,15 +70,17 @@ class LanTransferServer(context: Context) : AutoCloseable {
 
         val addresses = localIpv4Addresses().map { "http://$it:${socket.localPort}" }
         val baseAddresses = addresses.ifEmpty { listOf("http://127.0.0.1:${socket.localPort}") }
+        val primaryAddress = baseAddresses.first()
         return Session(
             expiresAtMillis = expiresAtMillis,
             port = socket.localPort,
             addresses = baseAddresses,
+            landingUrl = primaryAddress + LanTransferProtocol.landingPath(token),
             items = shareable.mapIndexed { index, file ->
                 SharedItem(
                     name = file.name,
                     sizeBytes = file.sizeBytes,
-                    url = baseAddresses.first() + LanTransferProtocol.itemPath(token, index),
+                    url = primaryAddress + LanTransferProtocol.itemPath(token, index),
                 )
             },
         )
@@ -128,7 +131,14 @@ class LanTransferServer(context: Context) : AutoCloseable {
                 writeText(output, 410, "Transfer session expired")
                 return
             }
-            val index = LanTransferProtocol.isValidRequestPath(parts[1], token, items.size)
+
+            val requestPath = parts[1]
+            if (LanTransferProtocol.isLandingRequestPath(requestPath, token)) {
+                writeLandingPage(output)
+                return
+            }
+
+            val index = LanTransferProtocol.isValidRequestPath(requestPath, token, items.size)
             if (index == null) {
                 writeText(output, 404, "Not Found")
                 return
@@ -161,6 +171,32 @@ class LanTransferServer(context: Context) : AutoCloseable {
                 output.flush()
             }
         }
+    }
+
+    private fun writeLandingPage(output: BufferedOutputStream) {
+        val body = LanTransferLandingPage.render(
+            items.mapIndexed { index, file ->
+                LanTransferLandingPage.Item(
+                    name = file.name,
+                    sizeBytes = file.sizeBytes,
+                    path = LanTransferProtocol.itemPath(token, index),
+                )
+            },
+        ).toByteArray(StandardCharsets.UTF_8)
+        val headers = buildString {
+            append("HTTP/1.1 200 OK\r\n")
+            append("Content-Type: text/html; charset=utf-8\r\n")
+            append("Content-Length: ${body.size}\r\n")
+            append("Cache-Control: no-store\r\n")
+            append("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\r\n")
+            append("Referrer-Policy: no-referrer\r\n")
+            append("X-Content-Type-Options: nosniff\r\n")
+            append("X-Frame-Options: DENY\r\n")
+            append("Connection: close\r\n\r\n")
+        }
+        output.write(headers.toByteArray(StandardCharsets.US_ASCII))
+        output.write(body)
+        output.flush()
     }
 
     private fun readRequestLine(input: BufferedInputStream): String? {
