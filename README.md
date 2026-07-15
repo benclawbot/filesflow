@@ -18,7 +18,7 @@ FilesFlow currently includes a status-bar-safe portrait app bar, a real internal
 
 Favorite folders can be starred or unstarred directly from folder rows or the file action sheet. Starred folders appear on the home dashboard and are prioritized as move/copy destinations. Images print through Android's image printing helper, and PDFs are passed into Android's system print UI so users can choose available printers or Save as PDF.
 
-Files and complete folder trees can be copied or moved between direct shared storage and SAF locations. Recursive transfers reject a source folder as its own destination, reject descendant destinations, generate collision-safe names for every file and folder, and remove incomplete destination trees when copying fails. Move operations delete the original only after the complete destination tree has been written; if Android refuses deletion, FilesFlow reports a successful copy while preserving the original.
+Files and complete folder trees can be copied or moved between direct shared storage and SAF locations. All transfer paths generate collision-safe names, remove incomplete destinations when copying fails, and delete the original only after the destination has been written completely. Recursive transfers additionally reject a source folder as its own destination and reject descendant destinations. If Android refuses source deletion after a successful copy, FilesFlow reports `Copied only` and preserves the original.
 
 With broad file access, FilesFlow builds a complete private SQLite index of readable shared-storage files instead of relying on capped scans. Each refresh generation is committed atomically, so an interrupted scan leaves the previous complete index available. Dashboard category counts and sizes are computed over the full index; category and search screens use bounded result windows for responsive rendering while querying the complete dataset. Copy, move, rename, and delete operations invalidate the index so the next repository query rebuilds it.
 
@@ -38,24 +38,26 @@ flowchart TD
     H --> I["IndexedFileManagerRepository"]
     I --> J["AndroidFileManagerRepository"]
     I --> K["DirectStorageIndex"]
-    I --> L["RecursiveFolderTransfer"]
-    K --> M["Atomic SQLite Generations"]
-    L --> N["Direct and SAF Trees"]
-    J --> O["StatFs Storage Usage"]
-    J --> P["MediaStore Queries"]
-    J --> Q["DocumentFile SAF Trees"]
-    J --> R["Direct File Access"]
-    J --> S["Favorite Folder Persistence"]
-    B --> T["Android Print UI"]
-    H --> U["FilesFlowUiState"]
-    U --> V["HomeDashboardScreen"]
-    V --> W["StorageOverviewCard"]
-    V --> X["SearchAndBrowseCard"]
-    V --> Y["FavoriteFoldersList"]
-    V --> Z["FileBrowserSection"]
+    I --> L["SingleFileTransfer"]
+    I --> M["RecursiveFolderTransfer"]
+    K --> N["Atomic SQLite Generations"]
+    L --> O["Direct and SAF Files"]
+    M --> P["Direct and SAF Trees"]
+    J --> Q["StatFs Storage Usage"]
+    J --> R["MediaStore Queries"]
+    J --> S["DocumentFile SAF Trees"]
+    J --> T["Direct File Access"]
+    J --> U["Favorite Folder Persistence"]
+    B --> V["Android Print UI"]
+    H --> W["FilesFlowUiState"]
+    W --> X["HomeDashboardScreen"]
+    X --> Y["StorageOverviewCard"]
+    X --> Z["SearchAndBrowseCard"]
+    X --> AA["FavoriteFoldersList"]
+    X --> AB["FileBrowserSection"]
 ```
 
-`FilesFlowApp` owns Android permission launchers, saved stable routes, print actions, and file open/share actions. `FilesFlowViewModel` owns dashboard, browser, selection, favorite-folder, and in-app destination-picking state. `IndexedFileManagerRepository` routes broad-access category summaries, category listings, and searches through the complete durable index, delegates single-file operations to `AndroidFileManagerRepository`, and uses `RecursiveFolderTransfer` for safe cross-storage folder trees. The `features/home/components` package renders the portrait-only Compose UI.
+`FilesFlowApp` owns Android permission launchers, saved stable routes, print actions, and file open/share actions. `FilesFlowViewModel` owns dashboard, browser, selection, favorite-folder, and in-app destination-picking state. `IndexedFileManagerRepository` routes broad-access category summaries, category listings, and searches through the complete durable index, uses `SingleFileTransfer` for safe collision-aware file operations, and uses `RecursiveFolderTransfer` for safe cross-storage folder trees. The `features/home/components` package renders the portrait-only Compose UI.
 
 ## Installation
 
