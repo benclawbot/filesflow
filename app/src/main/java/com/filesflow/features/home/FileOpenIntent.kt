@@ -14,6 +14,7 @@ import android.print.PrintManager
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import androidx.print.PrintHelper
+import com.filesflow.transfer.LanTransferActivity
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
@@ -36,28 +37,28 @@ fun fileShareIntent(context: Context, files: List<FilesFlowFile>): Intent? {
             val uri = openableUri(context, file) ?: return@mapNotNull null
             ShareableFile(
                 uri = uri,
+                name = file.name,
                 mimeType = file.mimeType ?: mimeTypeFromName(file.name) ?: "application/octet-stream",
+                sizeBytes = file.sizeBytes,
             )
         }
+        .distinctBy { it.uri }
 
     if (shareableFiles.isEmpty()) return null
 
-    val shareIntent = (if (shareableFiles.size == 1) {
-        Intent(Intent.ACTION_SEND).apply {
-            type = shareableFiles.single().mimeType
-            putExtra(Intent.EXTRA_STREAM, shareableFiles.single().uri)
-        }
-    } else {
-        Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-            type = commonMimeType(shareableFiles)
-            putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(shareableFiles.map { it.uri }))
-        }
-    }).apply {
+    return Intent(context, LanTransferActivity::class.java).apply {
+        putStringArrayListExtra(LanTransferActivity.EXTRA_URIS, ArrayList(shareableFiles.map { it.uri.toString() }))
+        putStringArrayListExtra(LanTransferActivity.EXTRA_NAMES, ArrayList(shareableFiles.map { it.name }))
+        putStringArrayListExtra(LanTransferActivity.EXTRA_MIME_TYPES, ArrayList(shareableFiles.map { it.mimeType }))
+        putExtra(LanTransferActivity.EXTRA_SIZES, shareableFiles.map { it.sizeBytes }.toLongArray())
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-
-    return Intent.createChooser(shareIntent, "Share files").apply {
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        shareableFiles.forEach { clipFile ->
+            clipData = (clipData ?: android.content.ClipData.newUri(context.contentResolver, clipFile.name, clipFile.uri)).also { data ->
+                if (data.itemCount == 0 || data.getItemAt(0).uri != clipFile.uri) {
+                    data.addItem(android.content.ClipData.Item(clipFile.uri))
+                }
+            }
+        }
     }
 }
 
@@ -103,11 +104,6 @@ private fun openableUri(context: Context, file: FilesFlowFile): Uri? {
         "${context.packageName}.fileprovider",
         diskFile,
     )
-}
-
-private fun commonMimeType(files: List<ShareableFile>): String {
-    val mimeTypes = files.map { it.mimeType }.distinct()
-    return if (mimeTypes.size == 1) mimeTypes.single() else "*/*"
 }
 
 private fun mimeTypeFromName(name: String): String? {
@@ -171,5 +167,7 @@ private class PdfPassthroughPrintAdapter(
 
 private data class ShareableFile(
     val uri: Uri,
+    val name: String,
     val mimeType: String,
+    val sizeBytes: Long,
 )
