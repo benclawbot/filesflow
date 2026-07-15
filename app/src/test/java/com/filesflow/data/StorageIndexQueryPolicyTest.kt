@@ -12,7 +12,7 @@ class StorageIndexQueryPolicyTest {
     @Test
     fun `escapes sqlite like wildcards and escape characters`() {
         assertEquals(
-            "%100\\%_ready\\_now\\\\final%",
+            "%100\\%\\_ready\\_now\\\\final%",
             StorageIndexQueryPolicy.containsPattern("100%_ready_now\\final"),
         )
     }
