@@ -18,6 +18,17 @@ class LanTransferProtocolTest {
     }
 
     @Test
+    fun landing_path_accepts_only_exact_session_token() {
+        val token = "abc123"
+
+        assertEquals("/t/$token", LanTransferProtocol.landingPath(token))
+        assertTrue(LanTransferProtocol.isLandingRequestPath("/t/$token", token))
+        assertTrue(LanTransferProtocol.isLandingRequestPath("/t/$token/?view=1", token))
+        assertFalse(LanTransferProtocol.isLandingRequestPath("/t/wrong", token))
+        assertFalse(LanTransferProtocol.isLandingRequestPath("/t/$token/0", token))
+    }
+
+    @Test
     fun request_path_accepts_only_exact_session_and_bounded_index() {
         val token = "abc123"
 
