@@ -10,11 +10,18 @@ class StorageIndexQueryPolicyTest {
     }
 
     @Test
-    fun `escapes sqlite like wildcards and escape characters`() {
-        assertEquals(
-            "%100\\%\\_ready\\_now\\\\final%",
-            StorageIndexQueryPolicy.containsPattern("100%_ready_now\\final"),
-        )
+    fun `escapes sqlite percent wildcard`() {
+        assertEquals("%100\\%%", StorageIndexQueryPolicy.containsPattern("100%"))
+    }
+
+    @Test
+    fun `escapes sqlite underscore wildcard`() {
+        assertEquals("%draft\\_final%", StorageIndexQueryPolicy.containsPattern("draft_final"))
+    }
+
+    @Test
+    fun `escapes sqlite escape character`() {
+        assertEquals("%folder\\\\file%", StorageIndexQueryPolicy.containsPattern("folder\\file"))
     }
 
     @Test
