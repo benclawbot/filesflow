@@ -18,7 +18,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.filesflow.data.AndroidFileManagerRepository
+import com.filesflow.data.IndexedFileManagerRepository
 import com.filesflow.features.home.FileCategoryType
 import com.filesflow.features.home.FilesFlowFile
 import com.filesflow.features.home.FilesFlowViewModel
@@ -45,7 +45,7 @@ private sealed interface PendingFilesFlowAction {
 fun FilesFlowApp() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val repository = remember(context) { AndroidFileManagerRepository(context) }
+    val repository = remember(context) { IndexedFileManagerRepository(context) }
     var currentAccessState by remember { mutableStateOf(currentStorageAccessState(context)) }
     var pendingAction by remember { mutableStateOf<PendingFilesFlowAction?>(null) }
     val viewModel = viewModel<FilesFlowViewModel>(
