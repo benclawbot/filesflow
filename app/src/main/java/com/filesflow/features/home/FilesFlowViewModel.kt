@@ -107,18 +107,17 @@ class FilesFlowViewModel(
     }
 
     fun openFolder(file: FilesFlowFile) {
-        if (!file.isDirectory) {
-            return
-        }
+        if (!file.isDirectory) return
+        val mode = BrowseMode.Folder(
+            uri = file.uri,
+            displayName = file.name,
+            path = file.path,
+            source = file.source,
+        )
         _uiState.update {
             it.copy(
                 isLoading = true,
-                browseMode = BrowseMode.Folder(
-                    uri = file.uri,
-                    displayName = file.name,
-                    path = file.path,
-                    source = file.source,
-                ),
+                browseMode = mode,
                 selectedFile = null,
                 selectedFileIds = emptySet(),
                 allCategoryFiles = emptyList(),
@@ -127,53 +126,21 @@ class FilesFlowViewModel(
             )
         }
         viewModelScope.launch {
-            val browserFiles = loadBrowserFiles(
-                mode = BrowseMode.Folder(
-                    uri = file.uri,
-                    displayName = file.name,
-                    path = file.path,
-                    source = file.source,
-                ),
-                selectedCategoryFolderId = null,
-            )
+            val browserFiles = loadBrowserFiles(mode, selectedCategoryFolderId = null)
             _uiState.update { it.withBrowserFiles(browserFiles).copy(isLoading = false) }
         }
     }
 
     fun showFileOpenFailed(fileName: String) {
-        _uiState.update {
-            it.copy(
-                operationStatus = FileOperationStatus(
-                    title = "Open failed",
-                    detail = "Android could not find an app to open $fileName.",
-                ),
-                isLoading = false,
-            )
-        }
+        showStatus("Open failed", "Android could not find an app to open $fileName.")
     }
 
     fun showPrintFailed(fileName: String) {
-        _uiState.update {
-            it.copy(
-                operationStatus = FileOperationStatus(
-                    title = "Print unavailable",
-                    detail = "Android could not prepare $fileName for printing.",
-                ),
-                isLoading = false,
-            )
-        }
+        showStatus("Print unavailable", "Android could not prepare $fileName for printing.")
     }
 
     fun showShareFailed() {
-        _uiState.update {
-            it.copy(
-                operationStatus = FileOperationStatus(
-                    title = "Share failed",
-                    detail = "Android could not prepare those files for sharing.",
-                ),
-                isLoading = false,
-            )
-        }
+        showStatus("Share failed", "Android could not prepare those files for sharing.")
     }
 
     fun search(query: String) {
@@ -182,10 +149,11 @@ class FilesFlowViewModel(
             openHome()
             return
         }
+        val mode = BrowseMode.Search(query)
         _uiState.update {
             it.copy(
                 isLoading = true,
-                browseMode = BrowseMode.Search(query),
+                browseMode = mode,
                 selectedFile = null,
                 selectedFileIds = emptySet(),
                 allCategoryFiles = emptyList(),
@@ -195,7 +163,7 @@ class FilesFlowViewModel(
             )
         }
         viewModelScope.launch {
-            val browserFiles = loadBrowserFiles(BrowseMode.Search(query), selectedCategoryFolderId = null)
+            val browserFiles = loadBrowserFiles(mode, selectedCategoryFolderId = null)
             _uiState.update { it.withBrowserFiles(browserFiles).copy(isLoading = false) }
         }
     }
@@ -221,13 +189,6 @@ class FilesFlowViewModel(
         _uiState.update { it.copy(selectedFileIds = emptySet()) }
     }
 
-    /**
-     * Toggle every visible file in the current category view into/out of the
-     * multi-selection. Visible-files-aware so it respects any active
-     * category-folder filter. If nothing is selected, all visible files are
-     * added; if everything visible is already selected, the selection is
-     * cleared.
-     */
     fun toggleSelectAllVisible() {
         _uiState.update { state ->
             val visible = state.visibleFiles
@@ -235,21 +196,20 @@ class FilesFlowViewModel(
                 visible.isEmpty() -> state.copy(selectedFileIds = emptySet(), selectedFile = null)
                 isAllVisibleSelected(visible, state.selectedFileIds) ->
                     state.copy(selectedFileIds = emptySet(), selectedFile = null)
-                else ->
-                    state.copy(
-                        selectedFileIds = selectAllVisibleFileIds(visible),
-                        selectedFile = null,
-                    )
+                else -> state.copy(
+                    selectedFileIds = selectAllVisibleFileIds(visible),
+                    selectedFile = null,
+                )
             }
         }
     }
 
     fun toggleCategoryFolder(folder: CategoryFolderFilter) {
         _uiState.update {
-            val nextSelectedFolderId = toggledCategoryFolderSelection(it.selectedCategoryFolderId, folder.id)
+            val selectedId = toggledCategoryFolderSelection(it.selectedCategoryFolderId, folder.id)
             it.copy(
-                selectedCategoryFolderId = nextSelectedFolderId,
-                visibleFiles = filesForCategoryFolder(it.allCategoryFiles, nextSelectedFolderId),
+                selectedCategoryFolderId = selectedId,
+                visibleFiles = filesForCategoryFolder(it.allCategoryFiles, selectedId),
                 selectedFile = null,
                 selectedFileIds = emptySet(),
             )
@@ -276,15 +236,7 @@ class FilesFlowViewModel(
     }
 
     fun showAccessRequired() {
-        _uiState.update {
-            it.copy(
-                operationStatus = FileOperationStatus(
-                    title = "Storage access needed",
-                    detail = "Android needs file access before FilesFlow can open that location.",
-                ),
-                isLoading = false,
-            )
-        }
+        showStatus("Storage access needed", "Android needs file access before FilesFlow can open that location.")
     }
 
     fun persistSafFolder(uri: Uri) {
@@ -293,7 +245,10 @@ class FilesFlowViewModel(
             it.copy(
                 destinationFolderName = repository.getPersistedSafFolderName(),
                 accessState = it.accessState.copy(hasSafFolder = true),
-                operationStatus = FileOperationStatus("Folder selected", "FilesFlow can now copy or move files into the selected folder."),
+                operationStatus = FileOperationStatus(
+                    "Folder selected",
+                    "FilesFlow can now copy or move files into the selected folder.",
+                ),
             )
         }
     }
@@ -303,13 +258,13 @@ class FilesFlowViewModel(
     }
 
     fun startDestinationSelection(operation: FileOperation, files: List<FilesFlowFile>) {
-        val movableFiles = files.filterNot { it.isDirectory }
-        if (movableFiles.isEmpty()) return
+        val transferableItems = files.distinctBy { it.id }
+        if (transferableItems.isEmpty()) return
 
         val state = _uiState.value
         val selection = DestinationSelection(
             operation = operation,
-            files = movableFiles,
+            files = transferableItems,
             returnBrowseMode = state.browseMode,
             returnSelectedCategoryFolderId = state.selectedCategoryFolderId,
         )
@@ -333,7 +288,14 @@ class FilesFlowViewModel(
 
     fun cancelDestinationSelection() {
         val selection = _uiState.value.destinationSelection ?: return
-        _uiState.update { it.copy(isLoading = true, destinationSelection = null, selectedFile = null, selectedFileIds = emptySet()) }
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                destinationSelection = null,
+                selectedFile = null,
+                selectedFileIds = emptySet(),
+            )
+        }
         viewModelScope.launch {
             restoreBrowseMode(
                 mode = selection.returnBrowseMode,
@@ -344,9 +306,20 @@ class FilesFlowViewModel(
 
     fun confirmFavoriteDestination(folder: FavoriteFolder) {
         val selection = _uiState.value.destinationSelection ?: return
+        executeDestinationSelection(selection, folder.toFilesFlowFile())
+    }
+
+    fun confirmDestinationSelection() {
+        val selection = _uiState.value.destinationSelection ?: return
+        val destinationMode = _uiState.value.browseMode
         _uiState.update { it.copy(isLoading = true, selectedFile = null, selectedFileIds = emptySet()) }
         viewModelScope.launch {
-            val status = runDestinationOperation(selection, folder.toFilesFlowFile())
+            val destination = destinationFolderForBrowseMode(destinationMode, repository.getBrowseRootFolder())
+            val status = if (destination == null) {
+                FileOperationStatus("Choose a folder", "Open a folder in Browse Files before validating the destination.")
+            } else {
+                runDestinationOperation(selection, destination)
+            }
             restoreBrowseMode(
                 mode = selection.returnBrowseMode,
                 selectedCategoryFolderId = selection.returnSelectedCategoryFolderId,
@@ -356,17 +329,10 @@ class FilesFlowViewModel(
         }
     }
 
-    fun confirmDestinationSelection() {
-        val selection = _uiState.value.destinationSelection ?: return
-        val destinationMode = _uiState.value.browseMode
+    private fun executeDestinationSelection(selection: DestinationSelection, destination: FilesFlowFile) {
         _uiState.update { it.copy(isLoading = true, selectedFile = null, selectedFileIds = emptySet()) }
         viewModelScope.launch {
-            val destinationFolder = destinationFolderForBrowseMode(destinationMode, repository.getBrowseRootFolder())
-            val status = if (destinationFolder == null) {
-                FileOperationStatus("Choose a folder", "Open a folder in Browse Files before validating the destination.")
-            } else {
-                runDestinationOperation(selection, destinationFolder)
-            }
+            val status = runDestinationOperation(selection, destination)
             restoreBrowseMode(
                 mode = selection.returnBrowseMode,
                 selectedCategoryFolderId = selection.returnSelectedCategoryFolderId,
@@ -387,26 +353,34 @@ class FilesFlowViewModel(
                 FileOperation.Delete -> repository.delete(file)
             }
         }
-        val successTitle = when (selection.operation) {
-            FileOperation.Copy -> "Copied"
-            FileOperation.Move -> "Moved"
-            FileOperation.Delete -> "Deleted"
-        }
-        val successCount = statuses.count { it.title == successTitle }
-        val fileLabel = "file".pluralized(selection.files.size)
+        if (selection.files.size == 1) return statuses.single()
+
+        val expectedTitle = selection.operation.successTitle()
+        val succeeded = statuses.count { it.title == expectedTitle }
+        val copiedOnly = statuses.count { it.title == "Copied only" }
+        val failed = statuses.size - succeeded - copiedOnly
+        val itemLabel = "item".pluralized(selection.files.size)
+
         return when {
-            selection.files.size == 1 -> statuses.single()
-            successCount == selection.files.size -> FileOperationStatus(
-                title = successTitle,
-                detail = "$successCount selected $fileLabel ${selection.operation.pastTense()} to ${destinationFolder.name}.",
+            failed == 0 && copiedOnly == 0 -> FileOperationStatus(
+                title = expectedTitle,
+                detail = "$succeeded selected $itemLabel ${selection.operation.pastTense()} to ${destinationFolder.name}.",
             )
-            successCount > 0 -> FileOperationStatus(
-                title = "Some files ${selection.operation.pastTense()}",
-                detail = "$successCount of ${selection.files.size} selected $fileLabel were ${selection.operation.pastTense()} to ${destinationFolder.name}.",
+            selection.operation == FileOperation.Move && failed == 0 -> FileOperationStatus(
+                title = "Move partially completed",
+                detail = "$succeeded moved; $copiedOnly copied completely but retained at the source because Android denied deletion.",
+            )
+            succeeded + copiedOnly > 0 -> FileOperationStatus(
+                title = "Some items ${selection.operation.pastTense()}",
+                detail = buildString {
+                    append("${succeeded + copiedOnly} of ${selection.files.size} selected $itemLabel were transferred to ${destinationFolder.name}.")
+                    if (copiedOnly > 0) append(" $copiedOnly remained at the source.")
+                    append(" $failed failed.")
+                },
             )
             else -> FileOperationStatus(
                 title = "${selection.operation.label()} failed",
-                detail = "FilesFlow could not ${selection.operation.verb()} the selected $fileLabel to ${destinationFolder.name}.",
+                detail = "FilesFlow could not ${selection.operation.verb()} the selected $itemLabel to ${destinationFolder.name}.",
             )
         }
     }
@@ -438,10 +412,11 @@ class FilesFlowViewModel(
             val selectedCategoryFolderId = _uiState.value.selectedCategoryFolderId
             val statuses = files.map { repository.delete(it) }
             val deletedCount = statuses.count { it.title == "Deleted" }
+            val itemLabel = "item".pluralized(files.size)
             val status = when {
-                deletedCount == files.size -> FileOperationStatus("Deleted", "$deletedCount selected ${"file".pluralized(deletedCount)} deleted.")
-                deletedCount > 0 -> FileOperationStatus("Some files deleted", "$deletedCount of ${files.size} selected files were deleted.")
-                else -> FileOperationStatus("Delete unavailable", "Android did not allow FilesFlow to delete the selected files.")
+                deletedCount == files.size -> FileOperationStatus("Deleted", "$deletedCount selected $itemLabel deleted.")
+                deletedCount > 0 -> FileOperationStatus("Some items deleted", "$deletedCount of ${files.size} selected $itemLabel were deleted.")
+                else -> FileOperationStatus("Delete unavailable", "Android did not allow FilesFlow to delete the selected $itemLabel.")
             }
             val browserFiles = loadBrowserFiles(mode, selectedCategoryFolderId)
             _uiState.update { it.withBrowserFiles(browserFiles).copy(operationStatus = status, isLoading = false) }
@@ -488,9 +463,7 @@ class FilesFlowViewModel(
             }
         }.getOrDefault(emptyList())
 
-        if (mode !is BrowseMode.Category) {
-            return BrowserFiles(visibleFiles = allFiles)
-        }
+        if (mode !is BrowseMode.Category) return BrowserFiles(visibleFiles = allFiles)
 
         val folders = categoryFolderFilters(allFiles)
         val activeFolderId = selectedCategoryFolderId?.takeIf { selectedId -> folders.any { it.id == selectedId } }
@@ -540,6 +513,15 @@ class FilesFlowViewModel(
         }
     }
 
+    private fun showStatus(title: String, detail: String) {
+        _uiState.update {
+            it.copy(
+                operationStatus = FileOperationStatus(title, detail),
+                isLoading = false,
+            )
+        }
+    }
+
     private fun FilesFlowUiState.withBrowserFiles(browserFiles: BrowserFiles): FilesFlowUiState {
         return copy(
             visibleFiles = browserFiles.visibleFiles,
@@ -553,32 +535,30 @@ class FilesFlowViewModel(
         return if (browseMode == BrowseMode.Home) recentFiles else visibleFiles
     }
 
-    private fun String.pluralized(count: Int): String {
-        return if (count == 1) this else "${this}s"
+    private fun String.pluralized(count: Int): String = if (count == 1) this else "${this}s"
+
+    private fun FileOperation.label(): String = when (this) {
+        FileOperation.Copy -> "Copy"
+        FileOperation.Move -> "Move"
+        FileOperation.Delete -> "Delete"
     }
 
-    private fun FileOperation.label(): String {
-        return when (this) {
-            FileOperation.Copy -> "Copy"
-            FileOperation.Move -> "Move"
-            FileOperation.Delete -> "Delete"
-        }
+    private fun FileOperation.verb(): String = when (this) {
+        FileOperation.Copy -> "copy"
+        FileOperation.Move -> "move"
+        FileOperation.Delete -> "delete"
     }
 
-    private fun FileOperation.verb(): String {
-        return when (this) {
-            FileOperation.Copy -> "copy"
-            FileOperation.Move -> "move"
-            FileOperation.Delete -> "delete"
-        }
+    private fun FileOperation.pastTense(): String = when (this) {
+        FileOperation.Copy -> "copied"
+        FileOperation.Move -> "moved"
+        FileOperation.Delete -> "deleted"
     }
 
-    private fun FileOperation.pastTense(): String {
-        return when (this) {
-            FileOperation.Copy -> "copied"
-            FileOperation.Move -> "moved"
-            FileOperation.Delete -> "deleted"
-        }
+    private fun FileOperation.successTitle(): String = when (this) {
+        FileOperation.Copy -> "Copied"
+        FileOperation.Move -> "Moved"
+        FileOperation.Delete -> "Deleted"
     }
 
     private data class BrowserFiles(
