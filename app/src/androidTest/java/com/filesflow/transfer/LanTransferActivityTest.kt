@@ -20,7 +20,7 @@ class LanTransferActivityTest {
     val composeRule = createAndroidComposeRule<LanTransferActivity>()
 
     @Test
-    fun selectedFileStartsVisibleSessionAndCanBeStopped() {
+    fun selectedFileStartsSingleLinkSessionAndCanBeStopped() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val file = File(context.cacheDir, "lan-transfer-test.txt").apply {
             writeText("FilesFlow LAN transfer smoke test")
@@ -43,13 +43,14 @@ class LanTransferActivityTest {
             activity.recreate()
         }
         composeRule.waitUntil(timeoutMillis = 10_000) {
-            composeRule.onAllNodesWithText("Copy links").fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodesWithText("Copy link").fetchSemanticsNodes().isNotEmpty()
         }
 
         composeRule.onNodeWithText("Send with FilesFlow").assertIsDisplayed()
+        composeRule.onNodeWithText("Open this single link on the receiving device:").assertIsDisplayed()
         composeRule.onNodeWithText(file.name).assertIsDisplayed()
-        composeRule.onNodeWithText("Copy links").assertIsDisplayed()
-        composeRule.onNodeWithText("Share links").assertIsDisplayed()
+        composeRule.onNodeWithText("Copy link").assertIsDisplayed()
+        composeRule.onNodeWithText("Share link").assertIsDisplayed()
         composeRule.onNodeWithText("Stop transfer").performClick()
     }
 }
