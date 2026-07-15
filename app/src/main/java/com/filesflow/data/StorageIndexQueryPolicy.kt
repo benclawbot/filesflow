@@ -13,10 +13,12 @@ internal object StorageIndexQueryPolicy {
 
     fun boundedLimit(requested: Int, maximum: Int): Int = requested.coerceIn(1, maximum)
 
-    private fun escapeLike(value: String): String {
-        return value
-            .replace("\\", "\\\\")
-            .replace("%", "\\%")
-            .replace("_", "\\_")
+    private fun escapeLike(value: String): String = buildString(value.length) {
+        value.forEach { character ->
+            when (character) {
+                '\\', '%', '_' -> append('\\')
+            }
+            append(character)
+        }
     }
 }
