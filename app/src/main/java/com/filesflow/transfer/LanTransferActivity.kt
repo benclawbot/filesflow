@@ -95,9 +95,9 @@ class LanTransferActivity : ComponentActivity() {
 
     private fun sessionText(session: LanTransferServer.Session): String = buildString {
         appendLine("FilesFlow local transfer")
-        appendLine("Open these links while both devices are on the same Wi-Fi network:")
-        session.items.forEach { appendLine("${it.name}: ${it.url}") }
-        append("Links expire in 10 minutes.")
+        appendLine("Open this link while both devices are on the same Wi-Fi network:")
+        appendLine(session.landingUrl)
+        append("The link expires in 10 minutes.")
     }
 
     private fun readFiles(intent: Intent): List<FilesFlowFile> {
@@ -154,15 +154,14 @@ private fun TransferScreen(
             else -> {
                 val minutes = TimeUnit.MILLISECONDS.toMinutes((session.expiresAtMillis - System.currentTimeMillis()).coerceAtLeast(0L))
                 Text("${session.items.size} file${if (session.items.size == 1) "" else "s"} available for about $minutes minutes.")
+                Text("Open this single link on the receiving device:", fontWeight = FontWeight.SemiBold)
+                Text(session.landingUrl, style = MaterialTheme.typography.bodySmall)
                 session.items.forEach { item ->
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(item.name, fontWeight = FontWeight.SemiBold)
-                        Text(item.url, style = MaterialTheme.typography.bodySmall)
-                    }
+                    Text(item.name, fontWeight = FontWeight.SemiBold)
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(modifier = Modifier.weight(1f), onClick = { onCopy(session) }) { Text("Copy links") }
-                    Button(modifier = Modifier.weight(1f), onClick = { onShare(session) }) { Text("Share links") }
+                    Button(modifier = Modifier.weight(1f), onClick = { onCopy(session) }) { Text("Copy link") }
+                    Button(modifier = Modifier.weight(1f), onClick = { onShare(session) }) { Text("Share link") }
                 }
             }
         }
