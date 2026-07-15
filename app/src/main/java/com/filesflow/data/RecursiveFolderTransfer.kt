@@ -7,6 +7,7 @@ import androidx.documentfile.provider.DocumentFile
 import com.filesflow.features.home.FileSource
 import com.filesflow.features.home.FilesFlowFile
 import java.io.File
+import java.io.OutputStream
 
 internal class RecursiveFolderTransfer(context: Context) {
     private val appContext = context.applicationContext
@@ -50,7 +51,7 @@ internal class RecursiveFolderTransfer(context: Context) {
     }
 
     private fun copyDirectoryToSaf(source: FilesFlowFile, destinationRoot: DocumentFile): Boolean {
-        val targetName = uniqueSafName(destinationRoot, source.name)
+        val targetName = uniqueSafName(destinationRoot, source.name, preserveExtension = false)
         val target = destinationRoot.createDirectory(targetName) ?: return false
         val copied = copyChildren(source, SafTarget(target))
         if (!copied) target.delete()
@@ -77,14 +78,14 @@ internal class RecursiveFolderTransfer(context: Context) {
             source.path != null -> File(source.path).takeIf { it.isFile && it.canRead() }?.inputStream()
             else -> null
         } ?: return false
-        val output = target.createFile(source.name, source.mimeType ?: "application/octet-stream") ?: return false
+        val created = target.createFile(source.name, source.mimeType ?: "application/octet-stream") ?: return false
         return runCatching {
             input.use { sourceStream ->
-                output.use { destinationStream -> sourceStream.copyTo(destinationStream) }
+                created.output.use { destinationStream -> sourceStream.copyTo(destinationStream) }
             }
             true
         }.getOrElse {
-            target.deleteCreatedFile(source.name)
+            created.cleanup()
             false
         }
     }
@@ -152,39 +153,47 @@ internal class RecursiveFolderTransfer(context: Context) {
         DocumentsContract.getTreeDocumentId(uri)
     }.getOrNull()
 
+    private data class CreatedOutput(
+        val output: OutputStream,
+        val cleanup: () -> Unit,
+    )
+
     private sealed interface FolderTarget {
         fun createDirectory(name: String): FolderTarget?
-        fun createFile(name: String, mimeType: String): java.io.OutputStream?
-        fun deleteCreatedFile(name: String)
+        fun createFile(name: String, mimeType: String): CreatedOutput?
         fun delete()
     }
 
     private inner class DirectTarget(private val directory: File) : FolderTarget {
         override fun createDirectory(name: String): FolderTarget? {
             val child = uniqueDirectChild(directory, name, directory = true)
-            return child.takeIf { it.mkdirs() }?.let(::DirectTarget)
+            return if (child.mkdirs()) DirectTarget(child) else null
         }
 
-        override fun createFile(name: String, mimeType: String): java.io.OutputStream? {
-            return runCatching { uniqueDirectChild(directory, name, directory = false).outputStream() }.getOrNull()
+        override fun createFile(name: String, mimeType: String): CreatedOutput? {
+            val child = uniqueDirectChild(directory, name, directory = false)
+            val output = runCatching { child.outputStream() }.getOrNull() ?: return null
+            return CreatedOutput(output = output, cleanup = { child.delete() })
         }
 
-        override fun deleteCreatedFile(name: String) = Unit
         override fun delete() { directory.deleteRecursively() }
     }
 
     private inner class SafTarget(private val directory: DocumentFile) : FolderTarget {
         override fun createDirectory(name: String): FolderTarget? {
-            return directory.createDirectory(uniqueSafName(directory, name))?.let(::SafTarget)
+            val childName = uniqueSafName(directory, name, preserveExtension = false)
+            return directory.createDirectory(childName)?.let { SafTarget(it) }
         }
 
-        override fun createFile(name: String, mimeType: String): java.io.OutputStream? {
-            val child = directory.createFile(mimeType, uniqueSafName(directory, name)) ?: return null
-            return resolver.openOutputStream(child.uri)
-        }
-
-        override fun deleteCreatedFile(name: String) {
-            directory.findFile(name)?.delete()
+        override fun createFile(name: String, mimeType: String): CreatedOutput? {
+            val childName = uniqueSafName(directory, name, preserveExtension = true)
+            val child = directory.createFile(mimeType, childName) ?: return null
+            val output = resolver.openOutputStream(child.uri)
+            if (output == null) {
+                child.delete()
+                return null
+            }
+            return CreatedOutput(output = output, cleanup = { child.delete() })
         }
 
         override fun delete() { directory.delete() }
@@ -200,9 +209,9 @@ internal class RecursiveFolderTransfer(context: Context) {
         return candidate
     }
 
-    private fun uniqueSafName(parent: DocumentFile, requestedName: String): String {
+    private fun uniqueSafName(parent: DocumentFile, requestedName: String, preserveExtension: Boolean): String {
         val existing = parent.listFiles().mapNotNull { it.name }.toHashSet()
-        val parts = TransferNamePolicy.parts(requestedName, preserveExtension = true)
+        val parts = TransferNamePolicy.parts(requestedName, preserveExtension)
         var candidate = requestedName
         var suffix = 1
         while (candidate in existing) candidate = TransferNamePolicy.withSuffix(parts, suffix++)
