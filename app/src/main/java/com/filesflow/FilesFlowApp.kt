@@ -188,8 +188,12 @@ fun FilesFlowApp() {
         }
         runCatching {
             context.startActivity(intent)
-        }.onFailure {
-            viewModel.showFileOpenFailed(file.name)
+        }.onFailure { error ->
+            if (error is ActivityNotFoundException) {
+                viewModel.showFileOpenFailed(file.name)
+            } else {
+                viewModel.showFileOpenFailed(file.name)
+            }
         }
     }
 
