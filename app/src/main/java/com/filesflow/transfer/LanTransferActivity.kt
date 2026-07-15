@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -46,24 +47,19 @@ class LanTransferActivity : ComponentActivity() {
                 var error by remember { mutableStateOf<String?>(null) }
                 val transferServer = remember { LanTransferServer(this) }
                 server = transferServer
-
                 DisposableEffect(Unit) {
                     runCatching { transferServer.start(files) }
                         .onSuccess { session = it }
                         .onFailure { error = it.localizedMessage ?: "Unable to start local transfer" }
                     onDispose { transferServer.close() }
                 }
-
                 Surface(modifier = Modifier.fillMaxSize()) {
                     TransferScreen(
                         session = session,
                         error = error,
                         onCopy = { copyText(sessionText(it)) },
                         onShare = { shareText(sessionText(it)) },
-                        onStop = {
-                            transferServer.stop()
-                            finish()
-                        },
+                        onStop = { transferServer.stop(); finish() },
                     )
                 }
             }
@@ -82,15 +78,10 @@ class LanTransferActivity : ComponentActivity() {
     }
 
     private fun shareText(text: String) {
-        startActivity(
-            Intent.createChooser(
-                Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, text)
-                },
-                "Share transfer link",
-            ),
-        )
+        startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+        }, "Share transfer link"))
     }
 
     private fun sessionText(session: LanTransferServer.Session): String = buildString {
@@ -139,33 +130,29 @@ private fun TransferScreen(
     onStop: () -> Unit,
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text("Send with FilesFlow", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text("Keep this screen open and connect the receiving device to the same Wi-Fi network.")
-
         when {
             error != null -> Text(error, color = MaterialTheme.colorScheme.error)
             session == null -> Text("Starting secure local transfer…")
             else -> {
                 val minutes = TimeUnit.MILLISECONDS.toMinutes((session.expiresAtMillis - System.currentTimeMillis()).coerceAtLeast(0L))
                 Text("${session.items.size} file${if (session.items.size == 1) "" else "s"} available for about $minutes minutes.")
-                Text("Open this single link on the receiving device:", fontWeight = FontWeight.SemiBold)
+                Text("Scan this QR code on the receiving device:", fontWeight = FontWeight.SemiBold)
+                TransferQrCode(session.landingUrl)
+                Text("Or open this single link:", fontWeight = FontWeight.SemiBold)
                 Text(session.landingUrl, style = MaterialTheme.typography.bodySmall)
-                session.items.forEach { item ->
-                    Text(item.name, fontWeight = FontWeight.SemiBold)
-                }
+                session.items.forEach { item -> Text(item.name, fontWeight = FontWeight.SemiBold) }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(modifier = Modifier.weight(1f), onClick = { onCopy(session) }) { Text("Copy link") }
                     Button(modifier = Modifier.weight(1f), onClick = { onShare(session) }) { Text("Share link") }
                 }
             }
         }
-
         OutlinedButton(modifier = Modifier.fillMaxWidth(), onClick = onStop) {
             Text(if (session == null && error == null) "Cancel" else "Stop transfer")
         }
