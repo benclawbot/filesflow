@@ -2,7 +2,7 @@
 
 ![FilesFlow banner](docs/assets/filesflow-banner.png)
 
-FilesFlow is a native Android file manager built with Kotlin and Jetpack Compose. It gives users a warm portrait dashboard for checking device storage, browsing common file categories, searching files, reviewing recent files, opening files with Android apps, printing images/PDF documents through Android's print UI, and managing files with copy, move, rename, and delete actions through Android storage access.
+FilesFlow is a native Android file manager built with Kotlin and Jetpack Compose. It gives users a warm portrait dashboard for checking device storage, browsing common file categories, searching files, reviewing recent files, opening files with Android apps, printing images/PDF documents through Android's print UI, managing files with copy, move, rename, and delete actions, and sending selected files directly to another device over the local network.
 
 FilesFlow is a native Android app and is not deployed as a hosted web service.
 
@@ -18,7 +18,9 @@ FilesFlow currently includes a status-bar-safe portrait app bar, a real internal
 
 Favorite folders can be starred or unstarred directly from folder rows or the file action sheet. Starred folders appear on the home dashboard and are prioritized as move/copy destinations. Images print through Android's image printing helper, and PDFs are passed into Android's system print UI so users can choose available printers or Save as PDF.
 
-Files and complete folder trees can be copied or moved between direct shared storage and SAF locations. Multi-select operations can contain any mixture of files and folders; FilesFlow keeps every selected item in the batch and reports full success, partial success, retained originals, and failures separately. All transfer paths generate extension-aware collision-safe names, remove incomplete destinations when copying fails, and delete the original only after the destination has been written completely. Recursive transfers additionally reject a source folder as its own destination and reject descendant destinations. If Android refuses source deletion after a successful copy, FilesFlow reports `Copied only` and preserves the original.
+Files and complete folder trees can be copied or moved between direct shared storage and SAF locations. All transfer paths generate extension-aware collision-safe names, remove incomplete destinations when copying fails, and delete the original only after the destination has been written completely. Recursive transfers additionally reject a source folder as its own destination and reject descendant destinations. If Android refuses source deletion after a successful copy, FilesFlow reports `Copied only` and preserves the original. Mixed multi-selection batches can contain both files and folders and report complete, copied-only, partial, or failed outcomes accurately.
+
+Selected files can also be sent directly to another device on the same Wi-Fi network. FilesFlow opens a dedicated transfer screen, starts a dependency-free local HTTP sender, and displays temporary per-file download links that can be copied or shared. Sessions use a cryptographically random URL token, expose only the explicitly selected files, reject traversal and unsupported methods, disable caching, expire automatically after ten minutes, and stop immediately when the transfer screen closes. No cloud account, website, relay, or receiving app is required; the receiving device uses its browser.
 
 With broad file access, FilesFlow builds a complete private SQLite index of readable shared-storage files instead of relying on capped scans. Each refresh generation is committed atomically, so an interrupted scan leaves the previous complete index available. Dashboard category counts and sizes are computed over the full index; category and search screens use bounded result windows for responsive rendering while querying the complete dataset. Copy, move, rename, and delete operations invalidate the index so the next repository query rebuilds it.
 
@@ -49,15 +51,18 @@ flowchart TD
     J --> T["Direct File Access"]
     J --> U["Favorite Folder Persistence"]
     B --> V["Android Print UI"]
-    H --> W["FilesFlowUiState"]
-    W --> X["HomeDashboardScreen"]
-    X --> Y["StorageOverviewCard"]
-    X --> Z["SearchAndBrowseCard"]
-    X --> AA["FavoriteFoldersList"]
-    X --> AB["FileBrowserSection"]
+    B --> W["LanTransferActivity"]
+    W --> X["LanTransferServer"]
+    X --> Y["Expiring Tokenized HTTP Links"]
+    H --> Z["FilesFlowUiState"]
+    Z --> AA["HomeDashboardScreen"]
+    AA --> AB["StorageOverviewCard"]
+    AA --> AC["SearchAndBrowseCard"]
+    AA --> AD["FavoriteFoldersList"]
+    AA --> AE["FileBrowserSection"]
 ```
 
-`FilesFlowApp` owns Android permission launchers, saved stable routes, print actions, and file open/share actions. `FilesFlowViewModel` owns dashboard, browser, mixed file/folder selection, favorite-folder, destination-picking, and aggregate operation-status state. `IndexedFileManagerRepository` routes broad-access category summaries, category listings, and searches through the complete durable index, uses `SingleFileTransfer` for safe collision-aware file operations, and uses `RecursiveFolderTransfer` for safe cross-storage folder trees. The `features/home/components` package renders the portrait-only Compose UI.
+`FilesFlowApp` owns Android permission launchers, saved stable routes, print actions, file open actions, and handoff into the private LAN transfer activity. `FilesFlowViewModel` owns dashboard, browser, selection, favorite-folder, and in-app destination-picking state. `IndexedFileManagerRepository` routes broad-access category summaries, category listings, and searches through the complete durable index, uses `SingleFileTransfer` for safe collision-aware file operations, and uses `RecursiveFolderTransfer` for safe cross-storage folder trees. `LanTransferActivity` owns the visible send session and lifecycle cleanup; `LanTransferServer` serves only selected files through expiring tokenized URLs. The `features/home/components` package renders the portrait-only Compose UI.
 
 ## Installation
 
@@ -68,7 +73,7 @@ flowchart TD
 adb install -r app\build\outputs\apk\debug\app-debug.apk
 ```
 
-FilesFlow asks for Android system access only when the user opens a category, search, or browser that needs it. Tap a file to open it with Android, or long-press a file or folder to manage it. Use the file action sheet or the multi-select folder action to open Browse Files, navigate to a destination folder, and validate it with the bottom-right button. Star folders in Browse Files to make them appear on Home and as first-choice copy/move destinations. Use Print / Save as PDF on printable images and PDFs to open Android's native print picker.
+FilesFlow asks for Android system access only when the user opens a category, search, or browser that needs it. Tap a file to open it, or long-press files and folders to manage them. Use the file action sheet or the multi-select folder action to open Browse Files, navigate to a destination folder, and validate it with the bottom-right button. Star folders in Browse Files to make them appear on Home and as first-choice copy/move destinations. Use Print / Save as PDF on printable images and PDFs to open Android's native print picker. To send files to another device, select one or more files, tap Share, keep the transfer screen open, and open the displayed links on a browser connected to the same Wi-Fi network.
 
 ### Run from Android Studio
 
