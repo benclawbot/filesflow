@@ -1,0 +1,1 @@
+Validation marker for collision-safe single-file copy and move across direct storage and SAF.
