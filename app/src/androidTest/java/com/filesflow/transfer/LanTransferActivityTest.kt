@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.core.content.FileProvider
@@ -20,16 +21,12 @@ class LanTransferActivityTest {
     val composeRule = createAndroidComposeRule<LanTransferActivity>()
 
     @Test
-    fun selectedFileStartsSingleLinkSessionAndCanBeStopped() {
+    fun selectedFileStartsQrSessionAndCanBeStopped() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val file = File(context.cacheDir, "lan-transfer-test.txt").apply {
             writeText("FilesFlow LAN transfer smoke test")
         }
-        val uri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file,
-        )
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(context, LanTransferActivity::class.java).apply {
             putStringArrayListExtra(LanTransferActivity.EXTRA_URIS, arrayListOf(uri.toString()))
             putStringArrayListExtra(LanTransferActivity.EXTRA_NAMES, arrayListOf(file.name))
@@ -47,7 +44,8 @@ class LanTransferActivityTest {
         }
 
         composeRule.onNodeWithText("Send with FilesFlow").assertIsDisplayed()
-        composeRule.onNodeWithText("Open this single link on the receiving device:").assertIsDisplayed()
+        composeRule.onNodeWithText("Scan this QR code on the receiving device:").assertIsDisplayed()
+        composeRule.onNodeWithTag("transfer-qr-code").assertIsDisplayed()
         composeRule.onNodeWithText(file.name).assertIsDisplayed()
         composeRule.onNodeWithText("Copy link").assertIsDisplayed()
         composeRule.onNodeWithText("Share link").assertIsDisplayed()
