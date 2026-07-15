@@ -15,10 +15,17 @@ internal object LanTransferProtocol {
         return bytes.joinToString("") { "%02x".format(it) }
     }
 
+    fun landingPath(token: String): String = "/t/$token"
+
     fun itemPath(token: String, index: Int): String = "/t/$token/$index"
 
     fun encodedFileName(name: String): String = URLEncoder.encode(name, StandardCharsets.UTF_8.name())
         .replace("+", "%20")
+
+    fun isLandingRequestPath(path: String, token: String): Boolean {
+        val requestPath = path.substringBefore('?').removeSuffix("/")
+        return requestPath == landingPath(token)
+    }
 
     fun isValidRequestPath(path: String, token: String, itemCount: Int): Int? {
         val prefix = "/t/$token/"
