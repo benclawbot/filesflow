@@ -71,6 +71,20 @@ Open this repository in Android Studio, let Gradle sync, select the `app` config
 ### Verify locally
 
 ```powershell
-.\gradlew.bat test
-.\gradlew.bat assembleDebug
+.\gradlew.bat testDebugUnitTest lintDebug lintRelease assembleDebug assembleRelease
 ```
+
+The unsigned optimized release APK is generated at `app/build/outputs/apk/release/app-release-unsigned.apk` when no signing environment is configured.
+
+## Release process
+
+Every push and pull request runs unit tests, Android lint for debug and release builds, debug APK assembly, and optimized release APK assembly. GitHub Actions retains the verification reports, R8 mapping, debug APK, and unsigned release APK.
+
+A tag matching `v*` starts the signed-release job after all verification gates pass. Configure these repository secrets first:
+
+- `FILESFLOW_KEYSTORE_BASE64`: the release keystore encoded as one Base64 string;
+- `FILESFLOW_KEYSTORE_PASSWORD`;
+- `FILESFLOW_KEY_ALIAS`;
+- `FILESFLOW_KEY_PASSWORD`.
+
+The tagged job decodes the keystore into the runner's temporary directory, builds the signed and optimized release APK, verifies its signature with `apksigner`, and attaches it to a GitHub release. The keystore and passwords are never written to the repository or uploaded as artifacts.
