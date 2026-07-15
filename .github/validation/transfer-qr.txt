@@ -1,0 +1,1 @@
+Validates QR handoff for the expiring local transfer session.
