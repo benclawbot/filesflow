@@ -8,7 +8,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,7 +21,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.filesflow.data.IndexedFileManagerRepository
-import com.filesflow.features.home.BrowseMode
 import com.filesflow.features.home.FileCategoryType
 import com.filesflow.features.home.FileSource
 import com.filesflow.features.home.FilesFlowFile
@@ -39,6 +37,7 @@ import com.filesflow.features.home.printFile
 import com.filesflow.features.home.systemAccessRequestForBroadFiles
 import com.filesflow.features.home.systemAccessRequestForCategory
 import com.filesflow.ui.theme.FilesFlowTheme
+import java.io.File
 
 private sealed interface PendingFilesFlowAction {
     data class OpenCategory(val type: FileCategoryType) : PendingFilesFlowAction
@@ -46,12 +45,17 @@ private sealed interface PendingFilesFlowAction {
     data class Search(val query: String) : PendingFilesFlowAction
 }
 
-private enum class SavedRouteKind {
-    Home,
-    Category,
-    BrowseRoot,
-    Folder,
-    Search,
+private sealed interface SavedFilesFlowRoute {
+    data object Home : SavedFilesFlowRoute
+    data class Category(val type: FileCategoryType) : SavedFilesFlowRoute
+    data object BrowseRoot : SavedFilesFlowRoute
+    data class Folder(
+        val displayName: String,
+        val path: String?,
+        val uri: String?,
+        val source: FileSource,
+    ) : SavedFilesFlowRoute
+    data class Search(val query: String) : SavedFilesFlowRoute
 }
 
 @Composable
@@ -61,14 +65,8 @@ fun FilesFlowApp() {
     val repository = remember(context) { IndexedFileManagerRepository(context) }
     var currentAccessState by remember { mutableStateOf(currentStorageAccessState(context)) }
     var pendingAction by remember { mutableStateOf<PendingFilesFlowAction?>(null) }
-    var savedRouteKind by rememberSaveable { mutableStateOf(SavedRouteKind.Home.name) }
-    var savedCategory by rememberSaveable { mutableStateOf("") }
-    var savedSearchQuery by rememberSaveable { mutableStateOf("") }
-    var savedFolderUri by rememberSaveable { mutableStateOf("") }
-    var savedFolderPath by rememberSaveable { mutableStateOf("") }
-    var savedFolderName by rememberSaveable { mutableStateOf("") }
-    var savedFolderSource by rememberSaveable { mutableStateOf(FileSource.DirectFile.name) }
-    var routeRestorationAttempted by rememberSaveable { mutableStateOf(false) }
+    var savedRoute by rememberSaveable { mutableStateOf(encodeSavedRoute(SavedFilesFlowRoute.Home)) }
+    var routeRestored by rememberSaveable { mutableStateOf(false) }
     val viewModel = viewModel<FilesFlowViewModel>(
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
@@ -77,7 +75,6 @@ fun FilesFlowApp() {
             }
         },
     )
-    val uiState by viewModel.uiState.collectAsState()
 
     fun readAccessState() = currentStorageAccessState(context).copy(
         hasSafFolder = repository.getPersistedSafFolderName() != null,
@@ -97,9 +94,18 @@ fun FilesFlowApp() {
 
     fun executeAction(action: PendingFilesFlowAction) {
         when (action) {
-            is PendingFilesFlowAction.OpenCategory -> viewModel.openCategory(action.type)
-            PendingFilesFlowAction.BrowseRoot -> viewModel.openBrowseRoot()
-            is PendingFilesFlowAction.Search -> viewModel.search(action.query)
+            is PendingFilesFlowAction.OpenCategory -> {
+                savedRoute = encodeSavedRoute(SavedFilesFlowRoute.Category(action.type))
+                viewModel.openCategory(action.type)
+            }
+            PendingFilesFlowAction.BrowseRoot -> {
+                savedRoute = encodeSavedRoute(SavedFilesFlowRoute.BrowseRoot)
+                viewModel.openBrowseRoot()
+            }
+            is PendingFilesFlowAction.Search -> {
+                savedRoute = encodeSavedRoute(SavedFilesFlowRoute.Search(action.query))
+                viewModel.search(action.query)
+            }
         }
     }
 
@@ -157,6 +163,7 @@ fun FilesFlowApp() {
     fun openWithAccess(action: PendingFilesFlowAction) {
         if (action is PendingFilesFlowAction.Search && action.query.isBlank()) {
             pendingAction = null
+            savedRoute = encodeSavedRoute(SavedFilesFlowRoute.Home)
             viewModel.openHome()
             return
         }
@@ -206,75 +213,28 @@ fun FilesFlowApp() {
         }
     }
 
-    LaunchedEffect(uiState.browseMode, uiState.destinationSelection) {
-        if (uiState.destinationSelection != null) return@LaunchedEffect
-        when (val mode = uiState.browseMode) {
-            BrowseMode.Home -> {
-                savedRouteKind = SavedRouteKind.Home.name
-                savedCategory = ""
-                savedSearchQuery = ""
-                savedFolderUri = ""
-                savedFolderPath = ""
-                savedFolderName = ""
-            }
-            is BrowseMode.Category -> {
-                savedRouteKind = SavedRouteKind.Category.name
-                savedCategory = mode.type.name
-            }
-            is BrowseMode.Search -> {
-                savedRouteKind = SavedRouteKind.Search.name
-                savedSearchQuery = mode.query
-            }
-            is BrowseMode.Folder -> {
-                val isRoot = mode.uri == null && mode.path == null
-                savedRouteKind = if (isRoot) SavedRouteKind.BrowseRoot.name else SavedRouteKind.Folder.name
-                savedFolderUri = mode.uri?.toString().orEmpty()
-                savedFolderPath = mode.path.orEmpty()
-                savedFolderName = mode.displayName
-                savedFolderSource = mode.source.name
-            }
-        }
+    fun openFolderAndSaveRoute(file: FilesFlowFile) {
+        if (!file.isDirectory) return
+        savedRoute = encodeSavedRoute(
+            SavedFilesFlowRoute.Folder(
+                displayName = file.name,
+                path = file.path,
+                uri = file.uri?.toString(),
+                source = file.source,
+            ),
+        )
+        viewModel.openFolder(file)
     }
 
     LaunchedEffect(Unit) {
         refreshDashboard()
-        val initialAccess = readAccessState()
-        if (!routeRestorationAttempted && uiState.browseMode == BrowseMode.Home) {
-            routeRestorationAttempted = true
-            when (runCatching { SavedRouteKind.valueOf(savedRouteKind) }.getOrDefault(SavedRouteKind.Home)) {
-                SavedRouteKind.Home -> Unit
-                SavedRouteKind.Category -> runCatching { FileCategoryType.valueOf(savedCategory) }
-                    .getOrNull()
-                    ?.let { openWithAccess(PendingFilesFlowAction.OpenCategory(it)) }
-                SavedRouteKind.Search -> savedSearchQuery
-                    .takeIf { it.isNotBlank() }
-                    ?.let { openWithAccess(PendingFilesFlowAction.Search(it)) }
-                SavedRouteKind.BrowseRoot -> openWithAccess(PendingFilesFlowAction.BrowseRoot)
-                SavedRouteKind.Folder -> {
-                    val source = runCatching { FileSource.valueOf(savedFolderSource) }.getOrDefault(FileSource.DirectFile)
-                    val canRestore = source == FileSource.Saf || initialAccess.hasAllFilesAccess || initialAccess.hasLegacyReadPermission
-                    if (canRestore && (savedFolderUri.isNotBlank() || savedFolderPath.isNotBlank())) {
-                        viewModel.openFolder(
-                            FilesFlowFile(
-                                id = "restored-${savedFolderUri.ifBlank { savedFolderPath }}",
-                                name = savedFolderName.ifBlank { "Folder" },
-                                metadata = "Folder",
-                                uri = savedFolderUri.takeIf { it.isNotBlank() }?.let(Uri::parse),
-                                path = savedFolderPath.takeIf { it.isNotBlank() },
-                                mimeType = null,
-                                sizeBytes = 0L,
-                                modifiedAtMillis = 0L,
-                                source = source,
-                                isDirectory = true,
-                            ),
-                        )
-                    }
-                }
-            }
-        }
-        if (!initialAccess.hasAllFilesAccess && !initialAccess.hasLegacyReadPermission) {
-            kotlinx.coroutines.delay(400)
-            requestSystemAccess(SystemAccessRequest.AllFilesAccess)
+        if (!routeRestored) {
+            routeRestored = true
+            restoreSavedRoute(
+                encodedRoute = savedRoute,
+                accessState = readAccessState(),
+                viewModel = viewModel,
+            )
         }
     }
 
@@ -306,9 +266,106 @@ fun FilesFlowApp() {
             onSearchFiles = { query ->
                 openWithAccess(PendingFilesFlowAction.Search(query))
             },
+            onOpenFolder = ::openFolderAndSaveRoute,
+            onOpenHome = {
+                savedRoute = encodeSavedRoute(SavedFilesFlowRoute.Home)
+            },
             onOpenFile = ::openFile,
             onPrintFile = ::printFileFromAction,
             onShareFiles = ::shareFiles,
         )
+    }
+}
+
+private fun encodeSavedRoute(route: SavedFilesFlowRoute): String {
+    return when (route) {
+        SavedFilesFlowRoute.Home -> "home"
+        is SavedFilesFlowRoute.Category -> "category|${route.type.name}"
+        SavedFilesFlowRoute.BrowseRoot -> "browse-root"
+        is SavedFilesFlowRoute.Search -> "search|${Uri.encode(route.query)}"
+        is SavedFilesFlowRoute.Folder -> listOf(
+            "folder",
+            route.source.name,
+            Uri.encode(route.displayName),
+            Uri.encode(route.path.orEmpty()),
+            Uri.encode(route.uri.orEmpty()),
+        ).joinToString("|")
+    }
+}
+
+private fun decodeSavedRoute(encoded: String): SavedFilesFlowRoute {
+    val parts = encoded.split('|')
+    return when (parts.firstOrNull()) {
+        "category" -> parts.getOrNull(1)
+            ?.let { runCatching { FileCategoryType.valueOf(it) }.getOrNull() }
+            ?.let(SavedFilesFlowRoute::Category)
+            ?: SavedFilesFlowRoute.Home
+        "browse-root" -> SavedFilesFlowRoute.BrowseRoot
+        "search" -> parts.getOrNull(1)
+            ?.let(Uri::decode)
+            ?.takeIf { it.isNotBlank() }
+            ?.let(SavedFilesFlowRoute::Search)
+            ?: SavedFilesFlowRoute.Home
+        "folder" -> {
+            val source = parts.getOrNull(1)
+                ?.let { runCatching { FileSource.valueOf(it) }.getOrNull() }
+                ?: return SavedFilesFlowRoute.Home
+            SavedFilesFlowRoute.Folder(
+                source = source,
+                displayName = parts.getOrNull(2)?.let(Uri::decode).orEmpty().ifBlank { "Folder" },
+                path = parts.getOrNull(3)?.let(Uri::decode)?.takeIf { it.isNotBlank() },
+                uri = parts.getOrNull(4)?.let(Uri::decode)?.takeIf { it.isNotBlank() },
+            )
+        }
+        else -> SavedFilesFlowRoute.Home
+    }
+}
+
+private fun restoreSavedRoute(
+    encodedRoute: String,
+    accessState: StorageAccessState,
+    viewModel: FilesFlowViewModel,
+) {
+    when (val route = decodeSavedRoute(encodedRoute)) {
+        SavedFilesFlowRoute.Home -> Unit
+        is SavedFilesFlowRoute.Category -> {
+            if (systemAccessRequestForCategory(route.type, accessState) == SystemAccessRequest.None) {
+                viewModel.openCategory(route.type)
+            }
+        }
+        SavedFilesFlowRoute.BrowseRoot -> {
+            if (systemAccessRequestForBroadFiles(accessState) == SystemAccessRequest.None) {
+                viewModel.openBrowseRoot()
+            }
+        }
+        is SavedFilesFlowRoute.Search -> {
+            if (systemAccessRequestForBroadFiles(accessState) == SystemAccessRequest.None) {
+                viewModel.search(route.query)
+            }
+        }
+        is SavedFilesFlowRoute.Folder -> {
+            val restorable = when (route.source) {
+                FileSource.DirectFile -> accessState.hasAllFilesAccess && route.path?.let(::File)?.isDirectory == true
+                FileSource.Saf -> route.uri != null
+                FileSource.MediaStore,
+                FileSource.AppPackage -> false
+            }
+            if (restorable) {
+                viewModel.openFolder(
+                    FilesFlowFile(
+                        id = "restored-${route.uri ?: route.path}",
+                        name = route.displayName,
+                        metadata = "Folder",
+                        uri = route.uri?.let(Uri::parse),
+                        path = route.path,
+                        mimeType = null,
+                        sizeBytes = 0L,
+                        modifiedAtMillis = 0L,
+                        source = route.source,
+                        isDirectory = true,
+                    ),
+                )
+            }
+        }
     }
 }
