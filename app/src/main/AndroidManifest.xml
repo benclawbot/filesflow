@@ -21,6 +21,11 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.FilesFlow">
         <activity
+            android:name=".transfer.LanTransferActivity"
+            android:exported="false"
+            android:label="Send with FilesFlow"
+            android:screenOrientation="portrait" />
+        <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
