@@ -2,14 +2,17 @@ package com.filesflow
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
@@ -19,7 +22,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.filesflow.data.IndexedFileManagerRepository
+import com.filesflow.features.home.BrowseMode
 import com.filesflow.features.home.FileCategoryType
+import com.filesflow.features.home.FileSource
 import com.filesflow.features.home.FilesFlowFile
 import com.filesflow.features.home.FilesFlowViewModel
 import com.filesflow.features.home.HomeDashboardScreen
@@ -41,6 +46,14 @@ private sealed interface PendingFilesFlowAction {
     data class Search(val query: String) : PendingFilesFlowAction
 }
 
+private enum class SavedRouteKind {
+    Home,
+    Category,
+    BrowseRoot,
+    Folder,
+    Search,
+}
+
 @Composable
 fun FilesFlowApp() {
     val context = LocalContext.current
@@ -48,6 +61,14 @@ fun FilesFlowApp() {
     val repository = remember(context) { IndexedFileManagerRepository(context) }
     var currentAccessState by remember { mutableStateOf(currentStorageAccessState(context)) }
     var pendingAction by remember { mutableStateOf<PendingFilesFlowAction?>(null) }
+    var savedRouteKind by rememberSaveable { mutableStateOf(SavedRouteKind.Home.name) }
+    var savedCategory by rememberSaveable { mutableStateOf("") }
+    var savedSearchQuery by rememberSaveable { mutableStateOf("") }
+    var savedFolderUri by rememberSaveable { mutableStateOf("") }
+    var savedFolderPath by rememberSaveable { mutableStateOf("") }
+    var savedFolderName by rememberSaveable { mutableStateOf("") }
+    var savedFolderSource by rememberSaveable { mutableStateOf(FileSource.DirectFile.name) }
+    var routeRestorationAttempted by rememberSaveable { mutableStateOf(false) }
     val viewModel = viewModel<FilesFlowViewModel>(
         factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
@@ -56,6 +77,7 @@ fun FilesFlowApp() {
             }
         },
     )
+    val uiState by viewModel.uiState.collectAsState()
 
     fun readAccessState() = currentStorageAccessState(context).copy(
         hasSafFolder = repository.getPersistedSafFolderName() != null,
@@ -159,12 +181,8 @@ fun FilesFlowApp() {
         }
         runCatching {
             context.startActivity(intent)
-        }.onFailure { error ->
-            if (error is ActivityNotFoundException) {
-                viewModel.showFileOpenFailed(file.name)
-            } else {
-                viewModel.showFileOpenFailed(file.name)
-            }
+        }.onFailure {
+            viewModel.showFileOpenFailed(file.name)
         }
     }
 
@@ -188,14 +206,73 @@ fun FilesFlowApp() {
         }
     }
 
+    LaunchedEffect(uiState.browseMode, uiState.destinationSelection) {
+        if (uiState.destinationSelection != null) return@LaunchedEffect
+        when (val mode = uiState.browseMode) {
+            BrowseMode.Home -> {
+                savedRouteKind = SavedRouteKind.Home.name
+                savedCategory = ""
+                savedSearchQuery = ""
+                savedFolderUri = ""
+                savedFolderPath = ""
+                savedFolderName = ""
+            }
+            is BrowseMode.Category -> {
+                savedRouteKind = SavedRouteKind.Category.name
+                savedCategory = mode.type.name
+            }
+            is BrowseMode.Search -> {
+                savedRouteKind = SavedRouteKind.Search.name
+                savedSearchQuery = mode.query
+            }
+            is BrowseMode.Folder -> {
+                val isRoot = mode.uri == null && mode.path == null
+                savedRouteKind = if (isRoot) SavedRouteKind.BrowseRoot.name else SavedRouteKind.Folder.name
+                savedFolderUri = mode.uri?.toString().orEmpty()
+                savedFolderPath = mode.path.orEmpty()
+                savedFolderName = mode.displayName
+                savedFolderSource = mode.source.name
+            }
+        }
+    }
+
     LaunchedEffect(Unit) {
         refreshDashboard()
-        // Auto-prompt for all-files access on first launch.
-        // The user needs MANAGE_EXTERNAL_STORAGE to see any files at all;
-        // without it the dashboard shows an empty list with no obvious next step.
         val initialAccess = readAccessState()
+        if (!routeRestorationAttempted && uiState.browseMode == BrowseMode.Home) {
+            routeRestorationAttempted = true
+            when (runCatching { SavedRouteKind.valueOf(savedRouteKind) }.getOrDefault(SavedRouteKind.Home)) {
+                SavedRouteKind.Home -> Unit
+                SavedRouteKind.Category -> runCatching { FileCategoryType.valueOf(savedCategory) }
+                    .getOrNull()
+                    ?.let { openWithAccess(PendingFilesFlowAction.OpenCategory(it)) }
+                SavedRouteKind.Search -> savedSearchQuery
+                    .takeIf { it.isNotBlank() }
+                    ?.let { openWithAccess(PendingFilesFlowAction.Search(it)) }
+                SavedRouteKind.BrowseRoot -> openWithAccess(PendingFilesFlowAction.BrowseRoot)
+                SavedRouteKind.Folder -> {
+                    val source = runCatching { FileSource.valueOf(savedFolderSource) }.getOrDefault(FileSource.DirectFile)
+                    val canRestore = source == FileSource.Saf || initialAccess.hasAllFilesAccess || initialAccess.hasLegacyReadPermission
+                    if (canRestore && (savedFolderUri.isNotBlank() || savedFolderPath.isNotBlank())) {
+                        viewModel.openFolder(
+                            FilesFlowFile(
+                                id = "restored-${savedFolderUri.ifBlank { savedFolderPath }}",
+                                name = savedFolderName.ifBlank { "Folder" },
+                                metadata = "Folder",
+                                uri = savedFolderUri.takeIf { it.isNotBlank() }?.let(Uri::parse),
+                                path = savedFolderPath.takeIf { it.isNotBlank() },
+                                mimeType = null,
+                                sizeBytes = 0L,
+                                modifiedAtMillis = 0L,
+                                source = source,
+                                isDirectory = true,
+                            ),
+                        )
+                    }
+                }
+            }
+        }
         if (!initialAccess.hasAllFilesAccess && !initialAccess.hasLegacyReadPermission) {
-            // Small delay so the dashboard renders first, then the system dialog stacks on top.
             kotlinx.coroutines.delay(400)
             requestSystemAccess(SystemAccessRequest.AllFilesAccess)
         }
