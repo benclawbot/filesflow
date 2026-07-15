@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import java.io.FileInputStream
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,17 +23,20 @@ class FilesFlowSmokeTest {
         composeRule.onNodeWithText("Images").assertIsDisplayed()
 
         val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val packageName = instrumentation.targetContext.packageName
         instrumentation.uiAutomation.executeShellCommand(
-            "appops set ${instrumentation.targetContext.packageName} MANAGE_EXTERNAL_STORAGE allow",
+            "appops set --uid $packageName MANAGE_EXTERNAL_STORAGE allow",
         ).use { descriptor ->
-            descriptor.fileDescriptor.sync()
+            FileInputStream(descriptor.fileDescriptor).use { it.readBytes() }
         }
         composeRule.activityRule.scenario.recreate()
+        composeRule.waitForIdle()
 
         composeRule.onNodeWithContentDescription("Browse files").performClick()
         composeRule.onNodeWithText("Browse Files").assertIsDisplayed()
 
         composeRule.activityRule.scenario.recreate()
+        composeRule.waitForIdle()
 
         composeRule.onNodeWithText("Browse Files").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Back to dashboard").performClick()
