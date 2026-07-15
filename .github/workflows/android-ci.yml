@@ -17,7 +17,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -49,10 +49,13 @@ jobs:
         run: ./gradlew --no-daemon testDebugUnitTest
 
       - name: Run Android lint
-        run: ./gradlew --no-daemon lintDebug
+        run: ./gradlew --no-daemon lintDebug lintRelease
 
       - name: Build debug APK
         run: ./gradlew --no-daemon assembleDebug
+
+      - name: Build optimized release APK
+        run: ./gradlew --no-daemon assembleRelease
 
       - name: Upload verification reports
         if: always()
@@ -62,13 +65,22 @@ jobs:
           path: |
             app/build/reports/**
             app/build/test-results/**
+            app/build/outputs/mapping/release/**
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Upload APK
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: filesflow-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload unsigned release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: filesflow-release-unsigned-apk
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
           if-no-files-found: error
           retention-days: 14
