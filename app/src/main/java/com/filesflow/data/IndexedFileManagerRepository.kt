@@ -18,6 +18,7 @@ import com.filesflow.features.home.FilesFlowFile
 class IndexedFileManagerRepository(context: Context) : FileManagerRepository {
     private val delegate = AndroidFileManagerRepository(context)
     private val directStorageIndex = DirectStorageIndex(context)
+    private val folderTransfer = RecursiveFolderTransfer(context)
 
     override suspend fun getStorageOverview() = delegate.getStorageOverview()
 
@@ -65,19 +66,51 @@ class IndexedFileManagerRepository(context: Context) : FileManagerRepository {
     override suspend fun copyToFolder(
         file: FilesFlowFile,
         destinationFolder: FilesFlowFile,
-    ): FileOperationStatus = delegate.copyToFolder(file, destinationFolder).also(::invalidateAfterMutation)
+    ): FileOperationStatus {
+        val status = if (file.isDirectory) {
+            copyDirectory(file, destinationFolder)
+        } else {
+            delegate.copyToFolder(file, destinationFolder)
+        }
+        invalidateAfterMutation(status)
+        return status
+    }
 
     override suspend fun moveToFolder(
         file: FilesFlowFile,
         destinationFolder: FilesFlowFile,
-    ): FileOperationStatus = delegate.moveToFolder(file, destinationFolder).also(::invalidateAfterMutation)
+    ): FileOperationStatus {
+        val status = if (file.isDirectory) {
+            moveDirectory(file, destinationFolder)
+        } else {
+            delegate.moveToFolder(file, destinationFolder)
+        }
+        invalidateAfterMutation(status)
+        return status
+    }
 
     override suspend fun copyToSafFolder(file: FilesFlowFile): FileOperationStatus {
-        return delegate.copyToSafFolder(file).also(::invalidateAfterMutation)
+        val status = if (file.isDirectory) {
+            val destination = delegate.getBrowseRootFolder()
+                ?: return FileOperationStatus("Choose a folder", "Select a destination folder before copying folders.")
+            copyDirectory(file, destination)
+        } else {
+            delegate.copyToSafFolder(file)
+        }
+        invalidateAfterMutation(status)
+        return status
     }
 
     override suspend fun moveToSafFolder(file: FilesFlowFile): FileOperationStatus {
-        return delegate.moveToSafFolder(file).also(::invalidateAfterMutation)
+        val status = if (file.isDirectory) {
+            val destination = delegate.getBrowseRootFolder()
+                ?: return FileOperationStatus("Choose a folder", "Select a destination folder before moving folders.")
+            moveDirectory(file, destination)
+        } else {
+            delegate.moveToSafFolder(file)
+        }
+        invalidateAfterMutation(status)
+        return status
     }
 
     override suspend fun rename(file: FilesFlowFile, newName: String): FileOperationStatus {
@@ -95,6 +128,34 @@ class IndexedFileManagerRepository(context: Context) : FileManagerRepository {
     override fun getFavoriteFolders(): List<FavoriteFolder> = delegate.getFavoriteFolders()
 
     override fun toggleFavoriteFolder(folder: FilesFlowFile) = delegate.toggleFavoriteFolder(folder)
+
+    private fun copyDirectory(source: FilesFlowFile, destination: FilesFlowFile): FileOperationStatus {
+        return if (folderTransfer.copy(source, destination)) {
+            FileOperationStatus("Copied", "${source.name} and its contents were copied to ${destination.name}.")
+        } else {
+            FileOperationStatus(
+                "Copy failed",
+                "FilesFlow could not copy ${source.name}. The destination may be inside the source folder, inaccessible, or out of space.",
+            )
+        }
+    }
+
+    private fun moveDirectory(source: FilesFlowFile, destination: FilesFlowFile): FileOperationStatus {
+        if (!folderTransfer.copy(source, destination)) {
+            return FileOperationStatus(
+                "Move failed",
+                "FilesFlow could not copy ${source.name} safely, so the original folder was left unchanged.",
+            )
+        }
+        return if (folderTransfer.deleteSource(source)) {
+            FileOperationStatus("Moved", "${source.name} and its contents were moved to ${destination.name}.")
+        } else {
+            FileOperationStatus(
+                "Copied only",
+                "${source.name} was copied completely, but Android did not allow deleting the original folder.",
+            )
+        }
+    }
 
     private fun invalidateAfterMutation(status: FileOperationStatus) {
         val changedStorage = status.title in setOf("Copied", "Moved", "Deleted", "Renamed", "Copied only")
