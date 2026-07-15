@@ -106,7 +106,7 @@ class LanTransferActivity : ComponentActivity() {
         val mimeTypes = intent.getStringArrayListExtra(EXTRA_MIME_TYPES).orEmpty()
         val sizes = intent.getLongArrayExtra(EXTRA_SIZES) ?: LongArray(0)
         return uris.mapIndexedNotNull { index, value ->
-            val uri = runCatching(Uri::parse).getOrNull() ?: return@mapIndexedNotNull null
+            val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return@mapIndexedNotNull null
             FilesFlowFile(
                 id = "lan-$index-$value",
                 name = names.getOrNull(index).orEmpty().ifBlank { "download-$index" },
