@@ -18,6 +18,8 @@ FilesFlow currently includes a status-bar-safe portrait app bar, a real internal
 
 Favorite folders can be starred or unstarred directly from folder rows or the file action sheet. Starred folders appear on the home dashboard and are prioritized as move/copy destinations. Images print through Android's image printing helper, and PDFs are passed into Android's system print UI so users can choose available printers or Save as PDF.
 
+With broad file access, FilesFlow builds a complete private SQLite index of readable shared-storage files instead of relying on capped scans. Each refresh generation is committed atomically, so an interrupted scan leaves the previous complete index available. Dashboard category counts and sizes are computed over the full index; category and search screens use bounded result windows for responsive rendering while querying the complete dataset. Copy, move, rename, and delete operations invalidate the index so the next repository query rebuilds it.
+
 The interface keeps the original FilesFlow design language: warm `#fff8f2` surfaces, serif headline typography, compact portrait spacing, rounded 8-12dp controls, and raised or recessed neumorphic panels.
 
 ## Architecture
@@ -31,27 +33,27 @@ flowchart TD
     D --> F["SAF Folder Picker"]
     D --> G["All Files Settings"]
     B --> H["FilesFlowViewModel"]
-    H --> I["FileManagerRepository"]
+    H --> I["IndexedFileManagerRepository"]
     I --> J["AndroidFileManagerRepository"]
-    J --> K["StatFs Storage Usage"]
-    J --> L["MediaStore Queries"]
-    J --> M["DocumentFile SAF Trees"]
-    J --> N["Direct File Access"]
-    J --> O["Favorite Folder Persistence"]
-    B --> P["Android Print UI"]
-    H --> Q["FilesFlowUiState"]
-    Q --> R["HomeDashboardScreen"]
-    R --> S["StorageOverviewCard"]
-    R --> T["SearchAndBrowseCard"]
-    R --> U["FavoriteFoldersList"]
-    R --> V["CategoryGrid"]
-    R --> W["RecentFilesList"]
-    R --> X["FileBrowserSection"]
-    X --> Y["ImageGalleryGrid"]
-    R --> Z["FileActionsCard"]
+    I --> K["DirectStorageIndex"]
+    K --> L["Atomic SQLite Generations"]
+    J --> M["StatFs Storage Usage"]
+    J --> N["MediaStore Queries"]
+    J --> O["DocumentFile SAF Trees"]
+    J --> P["Direct File Access"]
+    J --> Q["Favorite Folder Persistence"]
+    B --> R["Android Print UI"]
+    H --> S["FilesFlowUiState"]
+    S --> T["HomeDashboardScreen"]
+    T --> U["StorageOverviewCard"]
+    T --> V["SearchAndBrowseCard"]
+    T --> W["FavoriteFoldersList"]
+    T --> X["CategoryGrid"]
+    T --> Y["RecentFilesList"]
+    T --> Z["FileBrowserSection"]
 ```
 
-`FilesFlowApp` owns Android permission launchers, print actions, and file open/share actions, `FilesFlowViewModel` owns dashboard, browser, selection, favorite-folder, and in-app destination-picking state, `AndroidFileManagerRepository` performs storage, MediaStore, SAF, direct-file, app-package, and favorite-folder persistence operations, and the `features/home/components` package renders the portrait-only Compose UI.
+`FilesFlowApp` owns Android permission launchers, print actions, and file open/share actions. `FilesFlowViewModel` owns dashboard, browser, selection, favorite-folder, and in-app destination-picking state. `IndexedFileManagerRepository` routes broad-access category summaries, category listings, and searches through the complete durable index while delegating live folder and file operations to `AndroidFileManagerRepository`. The `features/home/components` package renders the portrait-only Compose UI.
 
 ## Installation
 
