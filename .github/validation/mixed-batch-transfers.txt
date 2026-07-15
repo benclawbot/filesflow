@@ -1,0 +1,1 @@
+Validation marker for mixed file and folder batch copy/move reporting.
