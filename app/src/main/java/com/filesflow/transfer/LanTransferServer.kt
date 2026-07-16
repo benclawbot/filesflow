@@ -5,6 +5,7 @@ import com.filesflow.features.home.FilesFlowFile
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File
+import java.io.InputStream
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.net.ServerSocket
@@ -121,7 +122,8 @@ class LanTransferServer(context: Context) : AutoCloseable {
             client.soTimeout = 15_000
             val input = BufferedInputStream(client.getInputStream())
             val output = BufferedOutputStream(client.getOutputStream())
-            val requestLine = readRequestLine(input) ?: return
+            val requestLine = readLine(input) ?: return
+            val headers = readHeaders(input) ?: return
             val parts = requestLine.split(' ')
             if (parts.size < 2 || parts[0] != "GET") {
                 writeText(output, 405, "Method Not Allowed")
@@ -144,33 +146,79 @@ class LanTransferServer(context: Context) : AutoCloseable {
                 return
             }
             val file = items[index]
+            val length = contentLength(file)
+            if (length < 0L) {
+                writeText(output, 500, "Unable to determine file size")
+                return
+            }
+
+            val rangeHeader = headers["range"]
+            val range = HttpByteRange.parse(rangeHeader, length)
+            if (rangeHeader != null && range == null) {
+                writeRangeNotSatisfiable(output, length)
+                return
+            }
+
             val stream = openInput(file)
             if (stream == null) {
                 writeText(output, 404, "File unavailable")
                 return
             }
             stream.use { source ->
-                val length = contentLength(file)
-                if (length < 0L) {
-                    writeText(output, 500, "Unable to determine file size")
+                if (range != null && !source.skipFully(range.start)) {
+                    writeText(output, 500, "Unable to seek file")
                     return
                 }
-                val safeName = LanTransferProtocol.safeHeaderFileName(file.name)
-                val encodedName = LanTransferProtocol.encodedFileName(file.name)
-                val headers = buildString {
-                    append("HTTP/1.1 200 OK\r\n")
-                    append("Content-Type: ${file.mimeType ?: "application/octet-stream"}\r\n")
-                    append("Content-Length: $length\r\n")
-                    append("Content-Disposition: attachment; filename=\"$safeName\"; filename*=UTF-8''$encodedName\r\n")
-                    append("Cache-Control: no-store\r\n")
-                    append("X-Content-Type-Options: nosniff\r\n")
-                    append("Connection: close\r\n\r\n")
+                writeFileHeaders(output, file, length, range)
+                if (range == null) {
+                    source.copyTo(output)
+                } else {
+                    source.copyExactly(output, range.length)
                 }
-                output.write(headers.toByteArray(StandardCharsets.US_ASCII))
-                source.copyTo(output)
                 output.flush()
             }
         }
+    }
+
+    private fun writeFileHeaders(
+        output: BufferedOutputStream,
+        file: FilesFlowFile,
+        fullLength: Long,
+        range: HttpByteRange?,
+    ) {
+        val safeName = LanTransferProtocol.safeHeaderFileName(file.name)
+        val encodedName = LanTransferProtocol.encodedFileName(file.name)
+        val headers = buildString {
+            if (range == null) {
+                append("HTTP/1.1 200 OK\r\n")
+                append("Content-Length: $fullLength\r\n")
+            } else {
+                append("HTTP/1.1 206 Partial Content\r\n")
+                append("Content-Length: ${range.length}\r\n")
+                append("Content-Range: bytes ${range.start}-${range.endInclusive}/$fullLength\r\n")
+            }
+            append("Accept-Ranges: bytes\r\n")
+            append("Content-Type: ${file.mimeType ?: "application/octet-stream"}\r\n")
+            append("Content-Disposition: attachment; filename=\"$safeName\"; filename*=UTF-8''$encodedName\r\n")
+            append("Cache-Control: no-store\r\n")
+            append("X-Content-Type-Options: nosniff\r\n")
+            append("Connection: close\r\n\r\n")
+        }
+        output.write(headers.toByteArray(StandardCharsets.US_ASCII))
+    }
+
+    private fun writeRangeNotSatisfiable(output: BufferedOutputStream, fullLength: Long) {
+        output.write(
+            buildString {
+                append("HTTP/1.1 416 Range Not Satisfiable\r\n")
+                append("Content-Range: bytes */$fullLength\r\n")
+                append("Content-Length: 0\r\n")
+                append("Accept-Ranges: bytes\r\n")
+                append("Cache-Control: no-store\r\n")
+                append("Connection: close\r\n\r\n")
+            }.toByteArray(StandardCharsets.US_ASCII),
+        )
+        output.flush()
     }
 
     private fun writeLandingPage(output: BufferedOutputStream) {
@@ -199,7 +247,22 @@ class LanTransferServer(context: Context) : AutoCloseable {
         output.flush()
     }
 
-    private fun readRequestLine(input: BufferedInputStream): String? {
+    private fun readHeaders(input: BufferedInputStream): Map<String, String>? {
+        val headers = linkedMapOf<String, String>()
+        repeat(MAX_HEADER_LINES) {
+            val line = readLine(input) ?: return null
+            if (line.isEmpty()) return headers
+            val separator = line.indexOf(':')
+            if (separator <= 0) return null
+            val name = line.substring(0, separator).trim().lowercase()
+            val value = line.substring(separator + 1).trim()
+            if (name.isEmpty() || name in headers) return null
+            headers[name] = value
+        }
+        return null
+    }
+
+    private fun readLine(input: BufferedInputStream): String? {
         val bytes = ArrayList<Byte>()
         while (bytes.size < LanTransferProtocol.MAX_REQUEST_LINE_BYTES) {
             val value = input.read()
@@ -209,6 +272,32 @@ class LanTransferServer(context: Context) : AutoCloseable {
         }
         if (bytes.size >= LanTransferProtocol.MAX_REQUEST_LINE_BYTES) return null
         return bytes.toByteArray().toString(StandardCharsets.US_ASCII)
+    }
+
+    private fun InputStream.skipFully(byteCount: Long): Boolean {
+        var remaining = byteCount
+        while (remaining > 0L) {
+            val skipped = skip(remaining)
+            if (skipped > 0L) {
+                remaining -= skipped
+            } else if (read() == -1) {
+                return false
+            } else {
+                remaining--
+            }
+        }
+        return true
+    }
+
+    private fun InputStream.copyExactly(output: BufferedOutputStream, byteCount: Long) {
+        var remaining = byteCount
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        while (remaining > 0L) {
+            val read = read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+            if (read == -1) break
+            output.write(buffer, 0, read)
+            remaining -= read
+        }
     }
 
     private fun openInput(file: FilesFlowFile) = runCatching {
@@ -254,5 +343,9 @@ class LanTransferServer(context: Context) : AutoCloseable {
             .mapNotNull { it.hostAddress }
             .distinct()
             .sorted()
+    }
+
+    private companion object {
+        const val MAX_HEADER_LINES = 64
     }
 }
