@@ -35,20 +35,21 @@ class LanTransferRangeTest {
 
         LanTransferServer(context).use { server ->
             val session = server.start(listOf(sharedFile))
-            val uri = URI(session.items.single().url)
+            val advertisedUri = URI(session.items.single().url)
+            val testUri = URI("http", null, "127.0.0.1", session.port, advertisedUri.rawPath, null, null)
 
-            val partial = request(uri, "Range: bytes=2-5\r\n")
+            val partial = request(testUri, "Range: bytes=2-5\r\n")
             assertTrue(partial.startsWith("HTTP/1.1 206 Partial Content\r\n"))
             assertTrue(partial.contains("Content-Range: bytes 2-5/10\r\n"))
             assertTrue(partial.contains("Content-Length: 4\r\n"))
             assertTrue(partial.contains("Accept-Ranges: bytes\r\n"))
             assertEquals("2345", partial.substringAfter("\r\n\r\n"))
 
-            val suffix = request(uri, "Range: bytes=-3\r\n")
+            val suffix = request(testUri, "Range: bytes=-3\r\n")
             assertTrue(suffix.contains("Content-Range: bytes 7-9/10\r\n"))
             assertEquals("789", suffix.substringAfter("\r\n\r\n"))
 
-            val invalid = request(uri, "Range: bytes=20-30\r\n")
+            val invalid = request(testUri, "Range: bytes=20-30\r\n")
             assertTrue(invalid.startsWith("HTTP/1.1 416 Range Not Satisfiable\r\n"))
             assertTrue(invalid.contains("Content-Range: bytes */10\r\n"))
             assertEquals("", invalid.substringAfter("\r\n\r\n"))
