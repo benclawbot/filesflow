@@ -1,0 +1,1 @@
+validate binary-safe LAN range responses
