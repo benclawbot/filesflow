@@ -1,1 +1,1 @@
-validate resumable LAN downloads with binary-safe wire assertions
+validate resumable LAN downloads
