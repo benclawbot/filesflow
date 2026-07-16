@@ -90,7 +90,7 @@ The unsigned optimized release APK is generated at `app/build/outputs/apk/releas
 
 ## Release process
 
-Every push and pull request runs JVM unit tests, Android lint for debug and release builds, debug APK assembly, optimized release APK assembly, and an API 35 hardware-accelerated emulator smoke test covering launch, Browse Files navigation, process recreation, return navigation, LAN transfer QR rendering, and raw HTTP range behavior. GitHub Actions retains raw unit-test diagnostics, verification reports, instrumentation reports when available, the R8 mapping, the debug APK, and the unsigned release APK.
+Every push and pull request runs JVM unit tests, Android lint for debug and release builds, debug APK assembly, optimized release APK assembly, and an API 35 hardware-accelerated emulator smoke test covering launch, Browse Files navigation, process recreation, return navigation, LAN transfer QR rendering, and raw HTTP range behavior. The raw-socket range test connects through device loopback to validate the bound server deterministically while preserving the real tokenized route and port. GitHub Actions retains raw unit-test diagnostics, verification reports, instrumentation reports when available, the R8 mapping, the debug APK, and the unsigned release APK.
 
 A tag matching `v*` starts the signed-release job only after both the standard verification job and the emulator smoke job pass. Configure all four repository secrets before creating the tag:
 
