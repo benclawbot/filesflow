@@ -89,7 +89,7 @@ class LanTransferRangeTest {
 
     private fun ByteArray.indexOfSequence(sequence: ByteArray): Int {
         if (sequence.isEmpty() || sequence.size > size) return -1
-        for (start in 0..size - sequence.size) {
+        for (start in 0..(size - sequence.size)) {
             var matches = true
             for (offset in sequence.indices) {
                 if (this[start + offset] != sequence[offset]) {
