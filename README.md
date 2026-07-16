@@ -20,7 +20,7 @@ Favorite folders can be starred or unstarred directly from folder rows or the fi
 
 Files and complete folder trees can be copied or moved between direct shared storage and SAF locations. All transfer paths generate extension-aware collision-safe names, remove incomplete destinations when copying fails, and delete the original only after the destination has been written completely. Recursive transfers additionally reject a source folder as its own destination and reject descendant destinations. If Android refuses source deletion after a successful copy, FilesFlow reports `Copied only` and preserves the original. Mixed multi-selection batches can contain both files and folders and report complete, copied-only, partial, or failed outcomes accurately.
 
-Selected files can also be sent directly to another device on the same Wi-Fi network. FilesFlow opens a dedicated transfer screen, starts a dependency-free local HTTP sender, and displays one temporary session link that can be copied or shared. Opening that link in any modern browser shows a responsive receiver page listing every selected file with an individual download button and file size. Sessions use a cryptographically random URL token, expose only the explicitly selected files, reject traversal and unsupported methods, disable caching, apply restrictive browser security headers, expire automatically after ten minutes, and stop immediately when the transfer screen closes. No cloud account, website, relay, or receiving app is required.
+Selected files can also be sent directly to another device on the same Wi-Fi network. FilesFlow opens a dedicated transfer screen, starts a dependency-free local HTTP sender, and presents one temporary session link plus a locally generated QR code. The receiving browser opens a responsive landing page listing every selected file. Sessions use a cryptographically random URL token, expose only explicitly selected files, reject traversal and unsupported methods, disable caching, expire automatically after ten minutes, and stop immediately when the transfer screen closes. File endpoints support standard single-byte HTTP ranges, including bounded, open-ended, and suffix ranges, so browsers can resume interrupted downloads and media clients can request partial content. Invalid or unsatisfiable ranges return HTTP 416 without leaking file contents. No cloud account, website, relay, external QR service, or receiving app is required.
 
 With broad file access, FilesFlow builds a complete private SQLite index of readable shared-storage files instead of relying on capped scans. Each refresh generation is committed atomically, so an interrupted scan leaves the previous complete index available. Dashboard category counts and sizes are computed over the full index; category and search screens use bounded result windows for responsive rendering while querying the complete dataset. Copy, move, rename, and delete operations invalidate the index so the next repository query rebuilds it.
 
@@ -53,18 +53,17 @@ flowchart TD
     B --> V["Android Print UI"]
     B --> W["LanTransferActivity"]
     W --> X["LanTransferServer"]
-    X --> Y["Single Expiring Session URL"]
-    Y --> Z["Responsive Receiver Landing Page"]
-    Z --> AA["Tokenized File Downloads"]
-    H --> AB["FilesFlowUiState"]
-    AB --> AC["HomeDashboardScreen"]
-    AC --> AD["StorageOverviewCard"]
-    AC --> AE["SearchAndBrowseCard"]
-    AC --> AF["FavoriteFoldersList"]
-    AC --> AG["FileBrowserSection"]
+    X --> Y["Expiring Tokenized Session Page"]
+    X --> Z["Resumable Byte-Range Downloads"]
+    H --> AA["FilesFlowUiState"]
+    AA --> AB["HomeDashboardScreen"]
+    AB --> AC["StorageOverviewCard"]
+    AB --> AD["SearchAndBrowseCard"]
+    AB --> AE["FavoriteFoldersList"]
+    AB --> AF["FileBrowserSection"]
 ```
 
-`FilesFlowApp` owns Android permission launchers, saved stable routes, print actions, file open actions, and handoff into the private LAN transfer activity. `FilesFlowViewModel` owns dashboard, browser, selection, favorite-folder, and in-app destination-picking state. `IndexedFileManagerRepository` routes broad-access category summaries, category listings, and searches through the complete durable index, uses `SingleFileTransfer` for safe collision-aware file operations, and uses `RecursiveFolderTransfer` for safe cross-storage folder trees. `LanTransferActivity` owns the visible send session and lifecycle cleanup; `LanTransferServer` serves one secure receiver landing page and the selected files through expiring tokenized URLs. The `features/home/components` package renders the portrait-only Compose UI.
+`FilesFlowApp` owns Android permission launchers, saved stable routes, print actions, file open actions, and handoff into the private LAN transfer activity. `FilesFlowViewModel` owns dashboard, browser, selection, favorite-folder, and in-app destination-picking state. `IndexedFileManagerRepository` routes broad-access category summaries, category listings, and searches through the complete durable index, uses `SingleFileTransfer` for safe collision-aware file operations, and uses `RecursiveFolderTransfer` for safe cross-storage folder trees. `LanTransferActivity` owns the visible send session, QR handoff, and lifecycle cleanup; `LanTransferServer` serves the tokenized landing page and selected files with bounded request parsing and resumable single-range responses. The `features/home/components` package renders the portrait-only Compose UI.
 
 ## Installation
 
@@ -75,7 +74,7 @@ flowchart TD
 adb install -r app\build\outputs\apk\debug\app-debug.apk
 ```
 
-FilesFlow asks for Android system access only when the user opens a category, search, or browser that needs it. Tap a file to open it, or long-press files and folders to manage them. Use the file action sheet or the multi-select folder action to open Browse Files, navigate to a destination folder, and validate it with the bottom-right button. Star folders in Browse Files to make them appear on Home and as first-choice copy/move destinations. Use Print / Save as PDF on printable images and PDFs to open Android's native print picker. To send files to another device, select one or more files, tap Share, keep the transfer screen open, and open the single displayed session link in a browser connected to the same Wi-Fi network. The receiver can then download any listed file from the landing page.
+FilesFlow asks for Android system access only when the user opens a category, search, or browser that needs it. Tap a file to open it, or long-press files and folders to manage them. Use the file action sheet or the multi-select folder action to open Browse Files, navigate to a destination folder, and validate it with the bottom-right button. Star folders in Browse Files to make them appear on Home and as first-choice copy/move destinations. Use Print / Save as PDF on printable images and PDFs to open Android's native print picker. To send files to another device, select one or more files, tap Share, keep the transfer screen open, and scan the QR code or open the displayed link on a browser connected to the same Wi-Fi network.
 
 ### Run from Android Studio
 
@@ -91,7 +90,7 @@ The unsigned optimized release APK is generated at `app/build/outputs/apk/releas
 
 ## Release process
 
-Every push and pull request runs JVM unit tests, Android lint for debug and release builds, debug APK assembly, optimized release APK assembly, and an API 35 hardware-accelerated emulator smoke test covering launch, Browse Files navigation, process recreation, return navigation, and the dedicated LAN transfer activity. GitHub Actions retains raw unit-test diagnostics, verification reports, instrumentation reports, the R8 mapping, the debug APK, and the unsigned release APK.
+Every push and pull request runs JVM unit tests, Android lint for debug and release builds, debug APK assembly, optimized release APK assembly, and an API 35 hardware-accelerated emulator smoke test covering launch, Browse Files navigation, process recreation, return navigation, LAN transfer QR rendering, and raw HTTP range behavior. GitHub Actions retains raw unit-test diagnostics, verification reports, instrumentation reports when available, the R8 mapping, the debug APK, and the unsigned release APK.
 
 A tag matching `v*` starts the signed-release job only after both the standard verification job and the emulator smoke job pass. Configure all four repository secrets before creating the tag:
 
