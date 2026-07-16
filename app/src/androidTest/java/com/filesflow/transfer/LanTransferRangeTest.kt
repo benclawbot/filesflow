@@ -6,9 +6,14 @@ import com.filesflow.features.home.FileSource
 import com.filesflow.features.home.FilesFlowFile
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.net.ConnectException
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URI
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -18,48 +23,63 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class LanTransferRangeTest {
     @Test
-    fun serverReturnsExactPartialContentAndRejectsInvalidRange() {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val file = File(context.cacheDir, "lan-range-test.txt").apply {
-            writeBytes("0123456789".toByteArray(Charsets.US_ASCII))
-        }
-        val sharedFile = FilesFlowFile(
-            id = "range-test",
-            name = file.name,
-            metadata = "LAN range test",
-            uri = null,
-            path = file.absolutePath,
-            mimeType = "text/plain",
-            sizeBytes = file.length(),
-            modifiedAtMillis = file.lastModified(),
-            source = FileSource.Direct,
-            isDirectory = false,
-        )
+    fun serverReturnsExactPartialContentAndRejectsInvalidRange() = runBlocking {
+        withContext(Dispatchers.IO) {
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            val file = File(context.cacheDir, "lan-range-test.txt").apply {
+                writeBytes("0123456789".toByteArray(Charsets.US_ASCII))
+            }
+            val sharedFile = FilesFlowFile(
+                id = "range-test",
+                name = file.name,
+                metadata = "LAN range test",
+                uri = null,
+                path = file.absolutePath,
+                mimeType = "text/plain",
+                sizeBytes = file.length(),
+                modifiedAtMillis = file.lastModified(),
+                source = FileSource.Direct,
+                isDirectory = false,
+            )
 
-        LanTransferServer(context).use { server ->
-            val session = server.start(listOf(sharedFile))
-            val advertisedUri = URI(session.items.single().url)
-            val path = advertisedUri.rawPath
+            LanTransferServer(context).use { server ->
+                val session = server.start(listOf(sharedFile))
+                val advertisedUri = URI(session.items.single().url)
+                val path = advertisedUri.rawPath
 
-            val partial = request(session.port, path, "Range: bytes=2-5\r\n")
-            assertTrue(partial.headers, partial.headers.startsWith("HTTP/1.1 206 Partial Content\r\n"))
-            assertTrue(partial.headers, partial.headers.contains("Content-Range: bytes 2-5/10\r\n"))
-            assertTrue(partial.headers, partial.headers.contains("Content-Length: 4\r\n"))
-            assertTrue(partial.headers, partial.headers.contains("Accept-Ranges: bytes\r\n"))
-            assertArrayEquals("2345".toByteArray(Charsets.US_ASCII), partial.body)
+                val partial = request(session.port, path, "Range: bytes=2-5\r\n")
+                assertTrue(partial.headers, partial.headers.startsWith("HTTP/1.1 206 Partial Content\r\n"))
+                assertTrue(partial.headers, partial.headers.contains("Content-Range: bytes 2-5/10\r\n"))
+                assertTrue(partial.headers, partial.headers.contains("Content-Length: 4\r\n"))
+                assertTrue(partial.headers, partial.headers.contains("Accept-Ranges: bytes\r\n"))
+                assertArrayEquals("2345".toByteArray(Charsets.US_ASCII), partial.body)
 
-            val suffix = request(session.port, path, "Range: bytes=-3\r\n")
-            assertTrue(suffix.headers, suffix.headers.contains("Content-Range: bytes 7-9/10\r\n"))
-            assertArrayEquals("789".toByteArray(Charsets.US_ASCII), suffix.body)
+                val suffix = request(session.port, path, "Range: bytes=-3\r\n")
+                assertTrue(suffix.headers, suffix.headers.contains("Content-Range: bytes 7-9/10\r\n"))
+                assertArrayEquals("789".toByteArray(Charsets.US_ASCII), suffix.body)
 
-            val invalid = request(session.port, path, "Range: bytes=20-30\r\n")
-            assertTrue(invalid.headers, invalid.headers.startsWith("HTTP/1.1 416 Range Not Satisfiable\r\n"))
-            assertTrue(invalid.headers, invalid.headers.contains("Content-Range: bytes */10\r\n"))
-            assertEquals(0, invalid.body.size)
+                val invalid = request(session.port, path, "Range: bytes=20-30\r\n")
+                assertTrue(invalid.headers, invalid.headers.startsWith("HTTP/1.1 416 Range Not Satisfiable\r\n"))
+                assertTrue(invalid.headers, invalid.headers.contains("Content-Range: bytes */10\r\n"))
+                assertEquals(0, invalid.body.size)
+            }
         }
     }
 
-    private fun request(port: Int, path: String, additionalHeaders: String): Response {
+    private suspend fun request(port: Int, path: String, additionalHeaders: String): Response {
+        var lastFailure: Throwable? = null
+        repeat(5) { attempt ->
+            try {
+                return requestOnce(port, path, additionalHeaders)
+            } catch (error: ConnectException) {
+                lastFailure = error
+                if (attempt < 4) delay(100L)
+            }
+        }
+        throw AssertionError("Unable to connect to LAN transfer server on 127.0.0.1:$port", lastFailure)
+    }
+
+    private fun requestOnce(port: Int, path: String, additionalHeaders: String): Response {
         val rawResponse = Socket().use { socket ->
             socket.connect(InetSocketAddress("127.0.0.1", port), 5_000)
             socket.soTimeout = 5_000
