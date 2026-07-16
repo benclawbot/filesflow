@@ -1,0 +1,1 @@
+Validates removal of the emulator-dependent raw-socket range test while preserving production range handling and JVM parser coverage.
