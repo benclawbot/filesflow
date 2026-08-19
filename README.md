@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/filesflow-banner.svg" alt="FilesFlow" width="100%" />
+</p>
+
 # FilesFlow
 
 FilesFlow is a native Android file manager focused on fast browsing, practical file operations, and private local-network sharing.
